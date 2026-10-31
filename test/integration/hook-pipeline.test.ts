@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -19,9 +19,9 @@ const HOOK = resolve(import.meta.dirname, "../../hook/jetdeck-hook");
 const silent = { debug: () => undefined, warn: (m: string) => console.warn(m) };
 
 /** Runs `command` attached to a fresh pseudo-terminal, as an interactive agent would be. */
-function spawnInPty(command: string): ChildProcess {
+function spawnInPty(command: string, cwd?: string): ChildProcess {
 	const args = process.platform === "darwin" ? ["-q", "/dev/null", command] : ["-qec", command, "/dev/null"];
-	return spawn("script", args, { stdio: ["ignore", "ignore", "inherit"], detached: true });
+	return spawn("script", args, { stdio: ["ignore", "ignore", "inherit"], detached: true, ...(cwd ? { cwd } : {}) });
 }
 
 function killGroup(child: ChildProcess): void {
@@ -122,20 +122,27 @@ describe("hook → socket → store pipeline", () => {
 	});
 
 	it("drops sessions whose process died and discovers running agents", async () => {
+		// The scan also sees any real agents running on this machine, so assert on our own processes only.
 		const monitor = new ProcessMonitor(store, new ProcessTable(0), silent, () => ingestor.drain());
+		const claudeKey = store.list("claude").find((s) => s.cwd === "/work/jetdeck")?.key;
+		const copilotKey = store.list("copilot").find((s) => s.cwd === "/work/api")?.key;
+		assert.ok(claudeKey !== undefined && copilotKey !== undefined);
+
 		const copilot = children[1];
 		assert.ok(copilot !== undefined);
 		killGroup(copilot);
-		await new Promise((r) => setTimeout(r, 200));
-
-		const codex = await fakeAgent("codex", "");
-		children.push(spawnInPty(codex));
 		await new Promise((r) => setTimeout(r, 300));
 
+		const codexDir = await realpath(await mkdtemp(join(dir, "codex-")));
+		const codex = await fakeAgent("codex", "");
+		children.push(spawnInPty(codex, codexDir));
+		await new Promise((r) => setTimeout(r, 400));
+
 		await monitor.scan();
-		assert.equal(store.list("copilot").length, 0);
-		assert.equal(store.list("claude").length, 1);
-		assert.equal(store.list("codex")[0]?.state, "idle");
+		assert.equal(store.get(copilotKey), undefined, "dead copilot session removed");
+		assert.equal(store.get(claudeKey)?.state, "awaiting", "live hook-tracked session untouched");
+		const discovered = store.list("codex").find((s) => s.cwd === codexDir);
+		assert.equal(discovered?.state, "idle", "running codex discovered without any hook");
 	});
 
 	it("never fails or blocks the agent when the plugin is down", async () => {

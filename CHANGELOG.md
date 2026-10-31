@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-31
+
+### Added
+- **System Metric** action: live CPU (P/E cores), GPU (load, power, memory), Neural Engine activity, RAM (coloured by
+  macOS memory pressure, swap shown) and disk (free space incl. purgeable) with a 48-second sparkline; press opens
+  Activity Monitor.
+- `jetdeck-metrics`: native universal (arm64 + x86_64) C sampler built from IOReport, IOKit and Mach host statistics;
+  no root, ~1 sample/s, runs only while a metric key is visible and exits with the plugin.
+- Profile row 4 now shows CPU · GPU · ANE · RAM · Disk next to three overflow agent slots.
+
+### Fixed
+- `profile:install` waits for Stream Deck to exit (and kills a hung shutdown) before writing the profile.
+
 ## [1.0.0] - 2026-10-31
 
 ### Added

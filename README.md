@@ -9,6 +9,7 @@ Stream Deck XL plugin that turns your keys into a live control surface for termi
 - **Hold** → approve the pending prompt (sends Enter) or interrupt the running turn (sends Esc).
 - **Needs You** key counts sessions blocked on you; press jumps to the longest-waiting one, hold approves it.
 - **Send Prompt** keys type a saved prompt into the most ready matching session and bring it forward.
+- **System Metric** keys show live CPU (P/E cores), GPU (load, power), Neural Engine, RAM and disk with sparklines.
 
 ## How it works
 
@@ -75,7 +76,7 @@ Remove everything with `npm run hooks:uninstall`.
 | 1 | **Needs You** · Claude 1–7 |
 | 2 | Codex 1–4 · Copilot 1–4 |
 | 3 | Send Prompt: Review · Run tests · Commit · Fix error · Simplify · Plan first · Status · Continue |
-| 4 | Any agent, overflow slots 8–15 |
+| 4 | CPU · GPU · ANE · RAM · Disk · any agent 8–10 |
 
 Every key is editable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
 *Slot*; **Send Prompt** has label, prompt text, target and submit.
@@ -89,6 +90,22 @@ The first jump or keystroke into Ghostty / Terminal triggers the macOS Automatio
 claude   pid 81234   waiting      12s  ghostty         /dev/ttys003  /Users/me/work/jetdeck  Bash: rm -rf dist
 codex    pid 80111   working     188s  apple-terminal  /dev/ttys001  /Users/me/work/api      apply_patch
 ```
+
+### System metrics
+
+`jetdeck-metrics` (`native/jetdeck-metrics.c`) is a small C sampler compiled by `npm run build` on macOS. It needs no
+root and runs only while a metric key is on screen.
+
+| Key | Value | Detail | Source |
+|---|---|---|---|
+| CPU | mean core active residency | P / E cluster load | IOReport *CPU Core Performance States* |
+| GPU | device utilisation | power (W) · GPU memory | IOAccelerator *PerformanceStatistics*, IOReport *GPU Energy* |
+| ANE | share of time the Neural Engine drives memory traffic | active / idle | IOReport *PMP / SOC Floor* (ANE AF bandwidth) |
+| RAM | app + wired + compressed / installed | used / total, swap | `host_statistics64`, `vm.swapusage`; colour = memory pressure |
+| Disk | used share of the boot volume | free incl. purgeable | `kCFURLVolumeAvailableCapacityForImportantUsageKey` |
+
+Apple exposes no unprivileged ANE utilisation counter, and on current macOS the per-block energy counters are frozen
+for non-root processes, so ANE is reported as activity, not power.
 
 ## Development
 

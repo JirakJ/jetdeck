@@ -1,9 +1,7 @@
 import { AGENT_LABEL, projectName, type AgentFilter, type AgentKind, type Session, type SessionState } from "../domain/agent.ts";
 import type { PromptTarget } from "../domain/target-selector.ts";
+import { clip, SIZE, svg, text } from "./svg.ts";
 
-/** Native key canvas; Stream Deck scales SVG to the device (XL keys are 96 px, @2x 144 px). */
-const SIZE = 144;
-const FONT = "-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 interface Palette {
 	readonly bg: string;
@@ -117,9 +115,7 @@ export function renderPromptKey(label: string, target: PromptTarget, flash: "ok"
 	);
 }
 
-export function toDataUrl(svgMarkup: string): string {
-	return `data:image/svg+xml;charset=utf8,${encodeURIComponent(svgMarkup)}`;
-}
+export { toDataUrl } from "./svg.ts";
 
 function header(agent: AgentKind, right: string): string {
 	return [
@@ -183,41 +179,4 @@ export function wrap(value: string, width: number, maxLines: number): string[] {
 		}
 	}
 	return clipped;
-}
-
-function clip(value: string, max: number): string {
-	const chars = [...value];
-	return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : value;
-}
-
-function svg(background: string, body: string): string {
-	return (
-		`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">` +
-		`<rect width="${SIZE}" height="${SIZE}" fill="${background}"/>${body}</svg>`
-	);
-}
-
-function text(
-	x: number,
-	y: number,
-	content: string,
-	size: number,
-	fill: string,
-	weight: number,
-	opacity = 1,
-	anchor: "start" | "middle" | "end" = "middle",
-): string {
-	return (
-		`<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" ` +
-		`fill="${fill}" fill-opacity="${opacity}" text-anchor="${anchor}">${escapeXml(content)}</text>`
-	);
-}
-
-function escapeXml(value: string): string {
-	return value
-		.replace(/&/gu, "&amp;")
-		.replace(/</gu, "&lt;")
-		.replace(/>/gu, "&gt;")
-		.replace(/"/gu, "&quot;")
-		.replace(/'/gu, "&apos;");
 }

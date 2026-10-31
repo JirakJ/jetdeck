@@ -2,7 +2,9 @@
 // Bundles the plugin into a single ESM file inside the .sdPlugin folder.
 //   node scripts/build.mjs           production bundle
 //   node scripts/build.mjs --watch   rebuild on change and restart the plugin in Stream Deck
-import { execFile } from "node:child_process";
+// On macOS the native metrics helper is compiled as a universal (arm64 + x86_64) binary next to the bundle.
+import { execFile, execFileSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
@@ -29,6 +31,29 @@ const options = {
 	},
 	logLevel: "info",
 };
+
+/** Compiles native/jetdeck-metrics.c; skipped off macOS, where the metric keys show "n/a". */
+function buildMetricsHelper() {
+	if (process.platform !== "darwin") {
+		console.warn("jetdeck-metrics: skipped (macOS only)");
+		return;
+	}
+	const output = join(ROOT, "com.jakubjirak.jetdeck.sdPlugin", "bin", "jetdeck-metrics");
+	mkdirSync(dirname(output), { recursive: true });
+	execFileSync(
+		"clang",
+		[
+			"-std=c17", "-O2", "-Wall", "-Wextra", "-Werror", "-mmacosx-version-min=13.0",
+			"-arch", "arm64", "-arch", "x86_64",
+			"-o", output, join(ROOT, "native", "jetdeck-metrics.c"),
+			"-framework", "CoreFoundation", "-framework", "IOKit", "-lIOReport",
+		],
+		{ stdio: "inherit" },
+	);
+	console.log("  com.jakubjirak.jetdeck.sdPlugin/bin/jetdeck-metrics  (universal)");
+}
+
+buildMetricsHelper();
 
 if (watch) {
 	const restart = {

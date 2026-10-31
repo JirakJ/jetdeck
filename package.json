@@ -1,10 +1,10 @@
 {
   "name": "jetdeck",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions.",
+  "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions, plus live system metrics.",
   "license": "UNLICENSED",
-  "author": "Jakub Jir\u00e1k <jirak92@gmail.com>",
+  "author": "Jakub Jirák <jirak92@gmail.com>",
   "type": "module",
   "engines": {
     "node": ">=24"

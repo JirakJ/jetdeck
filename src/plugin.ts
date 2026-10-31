@@ -1,8 +1,10 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import streamDeck from "@elgato/streamdeck";
 import { AttentionKeyAction } from "./actions/attention-key.ts";
 import type { JetDeckContext, Refreshable } from "./actions/context.ts";
+import { MetricKeyAction } from "./actions/metric-key.ts";
 import { PromptKeyAction } from "./actions/prompt-key.ts";
 import { SessionKeyAction } from "./actions/session-key.ts";
 import { EventIngestor } from "./application/event-ingestor.ts";
@@ -10,10 +12,13 @@ import { ProcessMonitor } from "./application/process-monitor.ts";
 import { SessionStore } from "./domain/session-store.ts";
 import { SlotAllocator } from "./domain/slot-allocator.ts";
 import { IngestServer } from "./infrastructure/ingest-server.ts";
+import { MetricsSampler } from "./infrastructure/metrics-sampler.ts";
 import { ProcessTable } from "./infrastructure/process-table.ts";
 import { TerminalController } from "./infrastructure/terminal-controller.ts";
 
 const SOCKET_PATH = process.env["JETDECK_SOCKET"] ?? join(homedir(), ".jetdeck", "ingest.sock");
+/** The bundle lives in `<plugin>.sdPlugin/bin/`, next to the native metrics helper. */
+const METRICS_HELPER = join(dirname(fileURLToPath(import.meta.url)), "jetdeck-metrics");
 const FRAME_MS = 250;
 const PULSE_MS = 600;
 
@@ -40,6 +45,8 @@ const promptKeys = new PromptKeyAction(ctx);
 streamDeck.actions.registerAction(sessionKeys);
 streamDeck.actions.registerAction(attentionKeys);
 streamDeck.actions.registerAction(promptKeys);
+const sampler = new MetricsSampler(METRICS_HELPER, log);
+streamDeck.actions.registerAction(new MetricKeyAction(sampler, log));
 const views: readonly Refreshable[] = [sessionKeys, attentionKeys, promptKeys];
 
 function repaint(): void {
@@ -64,6 +71,7 @@ monitor.start();
 
 const shutdown = (): void => {
 	monitor.stop();
+	sampler.dispose();
 	void server.stop().finally(() => process.exit(0));
 };
 process.once("SIGTERM", shutdown);

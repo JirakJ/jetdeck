@@ -16,3 +16,4 @@ All notable changes to this project are documented here. The format follows
 - Process-table resolution of agent pid, TTY and hosting terminal; periodic discovery and cleanup of sessions.
 - Ghostty (AppleScript, exact split/tab) and Terminal.app control; app-level focus for IntelliJ and VS Code terminals.
 - `npm run status` to inspect tracked sessions.
+- `npm run profile:install`: ready-made, non-destructive XL page with the full layout.

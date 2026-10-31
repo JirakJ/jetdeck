@@ -50,7 +50,7 @@ npm ci
 npm run check            # typecheck + tests + bundle
 npm run hooks:install    # installs ~/.jetdeck/bin/jetdeck-hook and registers it with all three agents
 npm run link             # links the plugin into Stream Deck
-npm run restart
+npm run profile:install  # adds a ready-made JetDeck page to the XL profile and makes it current
 ```
 
 `hooks:install` is idempotent, keeps every existing hook and writes a `.jetdeck-backup` of each file it changes:
@@ -68,9 +68,17 @@ Remove everything with `npm run hooks:uninstall`.
 
 ## Use
 
-Drag **Agent Session** onto as many keys as you like and set *Agent* (any / Claude / Codex / Copilot) and *Slot*.
-A typical XL layout: one row of `Claude 1–4`, one of `Codex 1–2` + `Copilot 1–2`, a **Needs You** key, and a row
-of **Send Prompt** keys (“Review diff”, “Run tests”, “Commit”).
+`npm run profile:install` writes this XL page (other pages are kept; re-running replaces only the JetDeck page):
+
+| Row | Keys |
+|---|---|
+| 1 | **Needs You** · Claude 1–7 |
+| 2 | Codex 1–4 · Copilot 1–4 |
+| 3 | Send Prompt: Review · Run tests · Commit · Fix error · Simplify · Plan first · Status · Continue |
+| 4 | Any agent, overflow slots 8–15 |
+
+Every key is editable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
+*Slot*; **Send Prompt** has label, prompt text, target and submit.
 
 The first jump or keystroke into Ghostty / Terminal triggers the macOS Automation prompt
 (“Stream Deck wants to control Ghostty”) — allow it once.

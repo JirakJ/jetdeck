@@ -1,9 +1,28 @@
 {
   "name": "jetdeck",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
-  "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions, plus live system metrics.",
-  "license": "UNLICENSED",
+  "description": "Stream Deck plugin: live status and one-touch control of Claude Code, Codex and Copilot CLI sessions, plus live CPU, GPU, Neural Engine, RAM, disk and power of your Mac.",
+  "keywords": [
+    "stream-deck",
+    "elgato",
+    "claude-code",
+    "codex",
+    "copilot-cli",
+    "ai-agents",
+    "macos",
+    "apple-silicon",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/JirakJ/jetdeck#readme",
+  "bugs": {
+    "url": "https://github.com/JirakJ/jetdeck/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JirakJ/jetdeck.git"
+  },
+  "license": "MIT",
   "author": "Jakub Jirák <jirak92@gmail.com>",
   "type": "module",
   "engines": {
@@ -25,7 +44,8 @@
     "profile:install": "node scripts/profile.mjs",
     "power:enable": "sh scripts/power.sh enable",
     "power:disable": "sh scripts/power.sh disable",
-    "power:status": "sh scripts/power.sh status"
+    "power:status": "sh scripts/power.sh status",
+    "docs:images": "node scripts/render-docs.ts"
   },
   "dependencies": {
     "@elgato/streamdeck": "3.0.4",

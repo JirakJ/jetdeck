@@ -1,0 +1,29 @@
+name: Bug report
+description: Something on the keys is wrong, stuck or missing
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: JetDeck, macOS, Stream Deck app and model, agent CLI(s) and terminal
+      placeholder: JetDeck 1.3.0 · macOS 27.0 · Stream Deck 7.6 XL · Claude Code 2.1 · Ghostty 1.4
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `npm run status`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Plugin log
+      description: The newest file in `com.jakubjirak.jetdeck.sdPlugin/logs/`
+      render: text

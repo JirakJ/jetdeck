@@ -14,7 +14,7 @@ import { join } from "node:path";
 const ROOT = join(homedir(), "Library", "Application Support", "com.elgato.StreamDeck", "ProfilesV3");
 const XL_MODELS = new Set(["20GAT9901", "20GAT9902", "20GBA9901"]);
 const PAGE_NAME = "JetDeck";
-const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.2.0.0" };
+const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.3.0.0" };
 const dryRun = process.argv.includes("--dry-run");
 
 const PROMPTS = [

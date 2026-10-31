@@ -1,75 +1,94 @@
+<div align="center">
+
 # JetDeck
 
-Stream Deck XL plugin that turns your keys into a live control surface for terminal coding agents —
-**Claude Code**, **OpenAI Codex CLI** and **GitHub Copilot CLI**.
+**Your Stream Deck as a control surface for AI coding agents.**
 
-- **See every session at a glance.** Each key shows agent, project, state and timer:
-  `WORKING 3:07` · `WAITING 42s` (pulsing) · `DONE 5:12` · `ERROR` · `IDLE`, plus the running tool or pending permission.
-- **Press** → jump to the exact terminal tab/split the agent runs in.
-- **Hold** → approve the pending prompt (sends Enter) or interrupt the running turn (sends Esc).
-- **Needs You** key counts sessions blocked on you; press jumps to the longest-waiting one, hold approves it.
-- **Send Prompt** keys type a saved prompt into the most ready matching session and bring it forward.
-- **System Metric** keys show live CPU (P/E cores), GPU (load, power), Neural Engine, RAM and disk with sparklines.
+Live status of every **Claude Code**, **OpenAI Codex** and **GitHub Copilot CLI** session — one press to jump to the exact
+terminal, one hold to approve or interrupt — plus live **CPU, GPU, Neural Engine, RAM, disk and power** of your Mac.
 
-## How it works
+[![CI](https://github.com/JirakJ/jetdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/JirakJ/jetdeck/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JirakJ/jetdeck?sort=semver)](https://github.com/JirakJ/jetdeck/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)
+![Stream Deck 7.1+](https://img.shields.io/badge/Stream%20Deck-7.1%2B-5662f6)
 
-```
-agent hook ──stdin JSON──▶ ~/.jetdeck/bin/jetdeck-hook ──HTTP over Unix socket──▶ plugin
-                                (sh + curl, ~5 ms,              (~/.jetdeck/ingest.sock, 0600)
-                                 never blocks the agent)                 │
-                                                       ps process tree ──┤ resolve agent pid, TTY, terminal app
-                                                                         ▼
-                                                     SessionStore (state machine) ──▶ SVG keys @ 4 fps
-                                                                         │
-                                                     AppleScript (Ghostty / Terminal.app) ◀── press / hold
-```
+<img src="docs/images/deck.png" alt="JetDeck on a Stream Deck XL: agent sessions, a Needs-You counter, saved prompts and live system metrics" width="900">
 
-- **One session = one agent process.** Identity is the outermost agent pid, so `/clear`, resumes and nested shims
-  never duplicate keys. A process scan every 4 s picks up agents started before the plugin and drops sessions
-  whose process died without a `SessionEnd`.
-- **Hooks are fire-and-forget.** The plugin acknowledges with `204` before doing any work; if the plugin is down the
-  hook drains stdin and exits `0`. Agent behaviour is never changed — JetDeck observes, it does not decide.
-- **Sticky slots.** A session keeps its slot (1, 2, 3, …) for its whole life; new sessions take the lowest free slot.
+<sub>Rendered by JetDeck's own key renderer (<code>npm run docs:images</code>) — this is exactly what the keys draw.</sub>
 
-### Terminal support
+</div>
 
-| Terminal | Jump to session | Send prompt | Approve / interrupt |
+---
+
+## Why
+
+Running three agents in five terminals means constantly checking which one finished, which one is stuck on a
+permission prompt and which one burned the last ten minutes on a failing command. JetDeck puts that state on physical
+keys and turns the two most frequent interactions — *go to that session* and *yes, approve* — into a single press.
+
+It runs entirely on your machine: no account, no network, no telemetry.
+
+## Features
+
+<img src="docs/images/agent-states.png" alt="Session key states: working, waiting, done, error, idle, and the Needs You counter" width="800">
+
+| Key | Shows | Press | Hold |
 |---|---|---|---|
-| Ghostty 1.4+ | exact split / tab | typed, optional submit | ✅ |
-| Terminal.app | exact tab | always submitted | ✅ (Esc needs Accessibility for Stream Deck) |
-| IntelliJ / VS Code terminals | app only | — | — |
+| **Agent Session** | agent, project, running tool or pending permission, `WORKING 3:07` · `WAITING 42s` (pulsing) · `DONE` · `ERROR` · `IDLE` | jump to the exact terminal split / tab | approve a waiting prompt (Enter) or interrupt a running turn (Esc) |
+| **Needs You** | how many sessions are blocked on you, and which one waits longest | jump to it (or to the last finished one) | approve it |
+| **Send Prompt** | a saved prompt | type it into the most ready matching session and jump there | — |
+| **System Metric** | CPU · GPU · ANE · RAM · Disk · Power with a 48 s sparkline | open Activity Monitor | — |
 
-Terminal detection walks the process tree, so it works regardless of `TERM_PROGRAM`.
+- **Zero-config session discovery.** New sessions appear on the lowest free slot of their agent the moment they start
+  and keep that slot until they exit. Sessions started before JetDeck show up within 4 s via a process scan.
+- **Works with your existing hooks.** The installer appends to Claude Code, Codex and Copilot configs, keeps every
+  hook you already have and writes a backup of each file it touches.
+- **Never in the agent's way.** The hook is a few lines of `sh` + `curl`: it answers in milliseconds, never prints,
+  never fails and never blocks — even when Stream Deck is closed.
+
+<img src="docs/images/metrics.png" alt="System metric keys: CPU with P/E split, GPU load and power, Neural Engine, RAM, disk, package power" width="800">
+
+## Requirements
+
+- macOS 13 or later (Apple Silicon for CPU P/E split, GPU power and Neural Engine)
+- [Stream Deck app](https://www.elgato.com/downloads) 7.1+ and a Stream Deck — the ready-made page is laid out for the **XL** (8 × 4); every action works on any model
+- Node.js 24+, Git and the Xcode Command Line Tools (`xcode-select --install`)
+- At least one of [Claude Code](https://docs.claude.com/en/docs/claude-code), [Codex CLI](https://github.com/openai/codex), [GitHub Copilot CLI](https://github.com/github/copilot-cli)
 
 ## Install
 
-Requirements: macOS 13+, Stream Deck app 7.1+, Node.js 24+, `curl`.
+```sh
+curl -fsSL https://raw.githubusercontent.com/JirakJ/jetdeck/main/install.sh | sh
+```
+
+The script checks the prerequisites, clones the latest release to `~/.jetdeck/src`, builds the plugin and the native
+metrics sampler, links the plugin into Stream Deck, installs the agent hooks and — on a Stream Deck XL — adds a
+ready-made **JetDeck** page. Re-run it to update. Prefer to read it first? It's [short](install.sh).
+
+<details>
+<summary>Manual install</summary>
 
 ```sh
 git clone https://github.com/JirakJ/jetdeck && cd jetdeck
-npm ci
-npm run check            # typecheck + tests + bundle
-npm run hooks:install    # installs ~/.jetdeck/bin/jetdeck-hook and registers it with all three agents
+npm ci --include=dev
+npm run build            # bundles the plugin and compiles bin/jetdeck-metrics (universal binary)
 npm run link             # links the plugin into Stream Deck
-npm run profile:install  # adds a ready-made JetDeck page to the XL profile and makes it current
+npm run hooks:install    # registers the hook with Claude Code, Codex and Copilot CLI
+npm run profile:install  # optional, Stream Deck XL: adds and opens the JetDeck page
 ```
+</details>
 
-`hooks:install` is idempotent, keeps every existing hook and writes a `.jetdeck-backup` of each file it changes:
+### After installing
 
-| Agent | File | Events |
-|---|---|---|
-| Claude Code | `~/.claude/settings.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse(+Failure), PermissionRequest/Denied, Notification, Elicitation(+Result), Stop, StopFailure, SessionEnd |
-| Codex | `~/.codex/hooks.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse, PermissionRequest, Stop, Interrupt, SessionEnd |
-| Copilot CLI | `~/.copilot/hooks/jetdeck.json` | sessionStart, userPromptSubmitted, pre/postToolUse(+Failure), permissionRequest, notification, agentStop, errorOccurred, sessionEnd |
+1. **Restart running agent sessions** — agents read hooks at start-up. Until then their keys show `IDLE`.
+2. **Allow automation** — the first jump into Ghostty or Terminal triggers *“Stream Deck wants to control …”*. Allow it.
+3. **Optional: power readings** — `npm run power:enable` (asks for your password once, see [Security](#security)).
 
-Codex requires hook trust: run `/hooks` once inside Codex and approve the JetDeck entries.
-Already-running sessions pick up new hooks on their next start; until then they show as `IDLE` via the process scan.
+## Ready-made XL page
 
-Remove everything with `npm run hooks:uninstall`.
-
-## Use
-
-`npm run profile:install` writes this XL page (other pages are kept; re-running replaces only the JetDeck page):
+`npm run profile:install` adds this page to your XL profile and makes it current. Other pages are left alone;
+re-running replaces only the JetDeck page.
 
 | Row | Keys |
 |---|---|
@@ -78,50 +97,156 @@ Remove everything with `npm run hooks:uninstall`.
 | 3 | Send Prompt: Review · Run tests · Commit · Fix error · Simplify · Plan first · Status · Continue |
 | 4 | CPU · GPU · ANE · RAM · Disk · Power · any agent 8–9 |
 
-Every key is editable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
-*Slot*; **Send Prompt** has label, prompt text, target and submit.
+Every key is configurable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
+*Slot*; **Send Prompt** has label, prompt, target (most ready session, the one waiting for you, or a specific agent)
+and *Submit*; **System Metric** has the metric.
 
-The first jump or keystroke into Ghostty / Terminal triggers the macOS Automation prompt
-(“Stream Deck wants to control Ghostty”) — allow it once.
+## Terminal support
 
-`npm run status` prints what the plugin currently tracks:
+Terminals are detected from the process tree, so it works regardless of `TERM_PROGRAM`, tmux-free shells or nested
+shims.
 
-```
-claude   pid 81234   waiting      12s  ghostty         /dev/ttys003  /Users/me/work/jetdeck  Bash: rm -rf dist
-codex    pid 80111   working     188s  apple-terminal  /dev/ttys001  /Users/me/work/api      apply_patch
-```
+| Terminal | Jump to session | Send Prompt | Approve / interrupt |
+|---|---|---|---|
+| [Ghostty](https://ghostty.org) 1.4+ | exact split / tab | typed, optional submit | ✅ |
+| Terminal.app | exact tab | always submitted | ✅ (Esc needs Accessibility for Stream Deck) |
+| IntelliJ / VS Code integrated terminals | brings the app forward | — | — |
 
-### System metrics
+## System metrics
 
-`jetdeck-metrics` (`native/jetdeck-metrics.c`) is a small C sampler compiled by `npm run build` on macOS. It needs no
-root and runs only while a metric key is on screen.
+A small C sampler ([`native/jetdeck-metrics.c`](native/jetdeck-metrics.c)) reads the same counters Activity Monitor
+uses — without root. It runs only while a metric key is on screen and exits with the plugin.
 
 | Key | Value | Detail | Source |
 |---|---|---|---|
-| CPU | mean core active residency | P / E cluster load | IOReport *CPU Core Performance States* |
-| GPU | device utilisation | power (W) · GPU memory | IOAccelerator *PerformanceStatistics*, IOReport *GPU Energy* |
-| ANE | share of time the Neural Engine drives memory traffic | active / idle | IOReport *PMP / SOC Floor* (ANE AF bandwidth) |
-| RAM | app + wired + compressed / installed | used / total, swap | `host_statistics64`, `vm.swapusage`; colour = memory pressure |
-| Disk | used share of the boot volume | free incl. purgeable | `kCFURLVolumeAvailableCapacityForImportantUsageKey` |
+| CPU | mean core active residency | P / E cluster load, CPU W | IOReport *CPU Core Performance States* |
+| GPU | device utilisation | power · GPU memory | IOAccelerator *PerformanceStatistics*, IOReport *GPU Energy* |
+| ANE | share of time the Neural Engine drives memory traffic | ANE W | IOReport *PMP / SOC Floor* |
+| RAM | app + wired + compressed of installed | used / total, swap; colour = memory pressure | `host_statistics64`, `vm.swapusage` |
+| Disk | used share of the boot volume | free incl. purgeable, like Finder | `kCFURLVolumeAvailableCapacityForImportantUsageKey` |
+| Power | package watts | CPU / GPU / ANE watts, thermal pressure | `powermetrics` (after `npm run power:enable`) |
 
-| Power | package watts | CPU / GPU / ANE watts, thermal pressure | `powermetrics` (needs `npm run power:enable`) |
+Apple exposes no unprivileged Neural Engine utilisation counter, and current macOS freezes the per-block energy
+counters for non-root readers — so ANE load is reported as *activity* (verified: 0 % idle, 55–75 % under a Vision
+workload) and watts come from `powermetrics` when enabled.
 
-Apple exposes no unprivileged ANE utilisation counter, and on current macOS the per-block energy counters are frozen
-for non-root processes, so ANE is reported as activity; its watts (and CPU / package power) come from `powermetrics`.
+## How it works
 
-`npm run power:enable` asks for your password once and installs `/etc/sudoers.d/jetdeck-powermetrics`, allowing
-exactly `powermetrics --samplers cpu_power,gpu_power,ane_power,thermal -i 1000 -f plist` without a password — no other
-arguments, so `powermetrics -o FILE` (a root file write) stays protected. `npm run power:disable` removes it.
+```mermaid
+flowchart LR
+    A["Claude Code / Codex / Copilot CLI"] -- "hook event (JSON on stdin)" --> H["jetdeck-hook<br/>sh + curl"]
+    H -- "HTTP over Unix socket<br/>~/.jetdeck/ingest.sock (0600)" --> P["JetDeck plugin<br/>(Node.js, Stream Deck SDK 3)"]
+    PS["process table"] -- "agent pid, TTY, terminal app" --> P
+    M["jetdeck-metrics<br/>(native C)"] -- "JSON lines, 1 Hz" --> P
+    P -- "SVG key images" --> SD["Stream Deck"]
+    SD -- "press / hold" --> P
+    P -- "AppleScript: focus, type, Enter / Esc" --> T["Ghostty / Terminal.app"]
+```
+
+- **One session = one agent process.** Hook events are attributed to the outermost agent process above the hook, so
+  `/clear`, resumes and launcher shims never create duplicate keys.
+- **Fire-and-forget ingestion.** The plugin replies `204` before doing any work; events are applied strictly in
+  arrival order to a small state machine (`idle → working ⇄ waiting → done | error`).
+- **Self-healing.** A 4 s process scan adds agents that started before JetDeck and removes sessions whose process died
+  without a `SessionEnd` (crash, closed window, `kill -9`).
+- **Cheap rendering.** Keys are SVG, repainted at 4 fps only when their image actually changes.
+
+<details>
+<summary>Hook events per agent</summary>
+
+| Agent | Config | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse(+Failure), PermissionRequest/Denied, Notification, Elicitation(+Result), Stop, StopFailure, SessionEnd |
+| Codex | `~/.codex/hooks.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse, PermissionRequest, Stop, Interrupt, SessionEnd |
+| Copilot CLI | `~/.copilot/hooks/jetdeck.json` | sessionStart, userPromptSubmitted, pre/postToolUse(+Failure), permissionRequest, notification, agentStop, errorOccurred, sessionEnd |
+</details>
+
+## Security
+
+JetDeck observes; it never decides on the agent's behalf.
+
+- **Hooks only report.** `jetdeck-hook` forwards the event and exits `0` with no output, so it can't approve, deny or
+  alter anything. The socket lives in `~/.jetdeck` (mode `0700`) and is `0600`.
+- **Codex hook trust.** Codex runs a hook only after it is approved in `/hooks`. The installer writes the same trust
+  entries `/hooks` would — `trusted_hash` for **JetDeck's own handlers only**, computed exactly like Codex
+  ([`scripts/codex-trust.mjs`](scripts/codex-trust.mjs)) — and removes them on uninstall. Your other hooks are not touched.
+- **Power readings are opt-in.** `npm run power:enable` installs `/etc/sudoers.d/jetdeck-powermetrics`, allowing
+  exactly `powermetrics --samplers cpu_power,gpu_power,ane_power,thermal -i 1000 -f plist` without a password. Any other
+  arguments — notably `-o FILE`, which writes files as root — still need your password. `npm run power:disable` removes it.
+- **Hold to approve sends Enter**, i.e. the prompt's default choice. On multiple-choice questions that is the first option.
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `npm run hooks:install` / `hooks:uninstall` | register / remove the hook for all three agents (idempotent, with backups) |
+| `npm run profile:install` | add the ready-made XL page |
+| `npm run power:enable` / `power:disable` / `power:status` | manage the `powermetrics` sudoers rule |
+| `npm run status` | print the sessions the running plugin tracks |
+| `npm run link` / `restart` | link the plugin into Stream Deck / restart it |
+
+```text
+$ npm run status
+claude   pid 81234   waiting      12s  ghostty         /dev/ttys003  /Users/me/work/web-app  Bash: npm publish
+codex    pid 80111   working     188s  ghostty         /dev/ttys001  /Users/me/work/billing  apply_patch
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| A running session stays `IDLE` | It started before the hooks were installed — restart it. |
+| Codex sessions never change state | Re-run `npm run hooks:install`; check `~/.codex/config.toml` has the `JetDeck hooks` block. |
+| Press does nothing / key shows ⚠ | Allow *Stream Deck → Ghostty/Terminal* in System Settings → Privacy & Security → Automation. |
+| Power key shows `n/a` | `npm run power:enable`, then `npm run power:status`. Picked up within 30 s. |
+| Keys stay blank | `npm run restart`; logs are in `~/Library/Logs/ElgatoStreamDeck/` and the plugin's `logs/` folder. |
+
+## Uninstall
+
+```sh
+cd ~/.jetdeck/src
+npm run hooks:uninstall && npm run power:disable
+rm -f ~/Library/Application\ Support/com.elgato.StreamDeck/Plugins/com.jakubjirak.jetdeck.sdPlugin
+rm -rf ~/.jetdeck
+```
 
 ## Development
 
 ```sh
-npm run watch      # rebuild on change and restart the plugin
-npm test           # unit + end-to-end (real hook → socket → process table → store, in a real PTY)
-npm run validate   # Stream Deck manifest validation
-npm run pack       # dist/com.jakubjirak.jetdeck.streamDeckPlugin
+npm ci --include=dev
+npm run watch        # rebuild on change and restart the plugin
+npm run check        # typecheck + build + tests
+npm run validate     # Stream Deck manifest validation
+npm run pack         # dist/com.jakubjirak.jetdeck.streamDeckPlugin
+npm run docs:images  # re-render the README images (needs Playwright)
 ```
 
-Layout: `src/domain` (state machine, normalisation, slots — pure), `src/application` (ingestion, process
-monitoring), `src/infrastructure` (socket server, process table, terminal control), `src/presentation` (SVG keys),
-`src/actions` (Stream Deck actions), `hook/` (the agent-side hook), `scripts/` (build, hook installer, status).
+Tests are real end to end where it matters: a real hook script, a real Unix socket and a real process table in a real
+pseudo-terminal; the native sampler is exercised through the real `MetricsSampler` on macOS.
+
+```
+src/domain           state machine, hook normalisation, slots, metrics model — pure, no I/O
+src/application      event ingestion, process monitoring
+src/infrastructure   socket server, process table, terminal control, metrics sampler
+src/presentation     SVG key rendering
+src/actions          Stream Deck actions
+native/              jetdeck-metrics (C, IOReport / IOKit / Mach)
+hook/                jetdeck-hook (POSIX sh)
+scripts/             build, hook installer, Codex trust, XL page, power rule, docs images
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Roadmap
+
+- Exact-tab focus for iTerm2, WezTerm and kitty
+- Ready-made pages for Stream Deck MK.2, Neo and + (dials for scrolling sessions)
+- Per-session cost and token counters
+
+## License
+
+[MIT](LICENSE) © [Jakub Jirák](https://jakubjirak.com)
+
+Not affiliated with Elgato, Anthropic, OpenAI or GitHub. Stream Deck is a trademark of Corsair Memory, Inc.

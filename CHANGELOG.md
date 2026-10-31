@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-10-31
+
+### Added
+- `hooks:install` trusts JetDeck's own Codex hooks automatically by writing the same `hooks.state` entries Codex
+  `/hooks` writes (hash reproduced byte for byte); uninstall removes them. No manual `/hooks` step any more.
+- One-line installer: `curl -fsSL https://raw.githubusercontent.com/JirakJ/jetdeck/main/install.sh | sh`.
+- Public documentation: README with rendered key images, architecture, security model, troubleshooting;
+  CONTRIBUTING, SECURITY, issue and PR templates; `npm run docs:images` renders the images with the real renderers.
+- CI on macOS (native sampler, tests, manifest validation) and Linux.
+
+### Changed
+- Licensed under MIT.
+
 ## [1.2.0] - 2026-10-31
 
 ### Added

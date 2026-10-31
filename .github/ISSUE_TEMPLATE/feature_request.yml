@@ -1,0 +1,15 @@
+name: Feature request
+description: A new key, terminal, agent or Stream Deck model
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like JetDeck to do, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: Agent CLIs, terminal, Stream Deck model

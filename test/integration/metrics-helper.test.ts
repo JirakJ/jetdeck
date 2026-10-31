@@ -27,7 +27,8 @@ describe("jetdeck-metrics helper", { skip: process.platform !== "darwin" || !exi
 		assert.ok(Math.abs(m.at - Date.now()) < 5_000);
 		assert.ok(m.ram !== null && m.ram.usedBytes > 0 && m.ram.usedBytes <= m.ram.totalBytes);
 		assert.ok(m.disk !== null && m.disk.availableBytes > 0 && m.disk.availableBytes < m.disk.totalBytes);
-		if (process.arch === "arm64") {
+		// Virtualised CI runners expose no IOReport CPU/ANE channels; real Apple Silicon must.
+		if (process.arch === "arm64" && process.env["CI"] === undefined) {
 			assert.ok(m.cpu !== null && m.cpu.pCores > 0 && m.cpu.eCores > 0);
 			assert.ok(m.gpu !== null && m.gpu.usage !== null);
 			assert.ok(m.ane !== null);

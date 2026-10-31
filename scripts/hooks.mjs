@@ -9,6 +9,7 @@ import { chmod, copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/p
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { codexTrustEntries, codexTrustHash, rewriteCodexTrust } from "./codex-trust.mjs";
 
 const HOME = homedir();
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -55,7 +56,9 @@ const COPILOT_EVENTS = [
 ];
 
 const claudeSettings = join(process.env.CLAUDE_CONFIG_DIR ?? join(HOME, ".claude"), "settings.json");
-const codexHooks = join(process.env.CODEX_HOME ?? join(HOME, ".codex"), "hooks.json");
+const CODEX_HOME = process.env.CODEX_HOME ?? join(HOME, ".codex");
+const codexHooks = join(CODEX_HOME, "hooks.json");
+const codexConfig = join(CODEX_HOME, "config.toml");
 const copilotHooks = join(process.env.COPILOT_HOME ?? join(HOME, ".copilot"), "hooks", "jetdeck.json");
 
 const [command, ...flags] = process.argv.slice(2);
@@ -91,6 +94,37 @@ function addGrouped(hooks, agent, events, timeoutFor) {
 		result[event] = groups;
 	}
 	return result;
+}
+
+/** Makes exactly `wanted` JetDeck handlers trusted in Codex's config.toml; everything else stays verbatim. */
+async function updateCodexTrust(wanted, previousHashes) {
+	let text;
+	try {
+		text = await readFile(codexConfig, "utf8");
+	} catch (error) {
+		if (error.code !== "ENOENT") throw error;
+		text = "";
+	}
+	const next = rewriteCodexTrust(text, wanted, previousHashes, codexHooks);
+	if (next === text) return false;
+	if (dryRun) {
+		console.log(`--- ${codexConfig} (hooks.state)\n${[...wanted].map(([k, h]) => `${k} = ${h}`).join("\n")}`);
+		return true;
+	}
+	if (text.length > 0) await copyFile(codexConfig, `${codexConfig}.jetdeck-backup`);
+	await writeFile(codexConfig, next, "utf8");
+	return true;
+}
+
+/** Hashes of every handler JetDeck may have written to the Codex hooks file (any timeout it has used). */
+function codexJetDeckHashes(current) {
+	const hashes = new Set(codexTrustEntries(current, codexHooks, MARKER).values());
+	for (const event of CODEX_EVENTS) {
+		for (const timeout of [2, 5]) {
+			hashes.add(codexTrustHash(event, {}, { type: "command", command: hookCommand("codex", event), timeout }));
+		}
+	}
+	return hashes;
 }
 
 async function readJson(path) {
@@ -145,8 +179,14 @@ async function install() {
 	console.log(`claude     ${claudeSettings}`);
 
 	// Codex caps SessionEnd/Interrupt hooks at 3 s.
+	const previousCodex = (await readJson(codexHooks))?.hooks;
 	await updateGroupedFile(codexHooks, "codex", CODEX_EVENTS, (e) => (e === "SessionEnd" || e === "Interrupt" ? 2 : 5), true);
-	console.log(`codex      ${codexHooks}  (run /hooks once inside Codex to trust them)`);
+	const installedCodex = dryRun
+		? addGrouped(stripGrouped(previousCodex), "codex", CODEX_EVENTS, (e) => (e === "SessionEnd" || e === "Interrupt" ? 2 : 5))
+		: (await readJson(codexHooks))?.hooks;
+	const trust = codexTrustEntries(installedCodex, codexHooks, MARKER);
+	await updateCodexTrust(trust, codexJetDeckHashes(previousCodex));
+	console.log(`codex      ${codexHooks}  (${trust.size} handlers trusted in ${codexConfig})`);
 
 	const copilot = { version: 1, hooks: {} };
 	for (const event of COPILOT_EVENTS) {
@@ -158,7 +198,9 @@ async function install() {
 
 async function uninstall() {
 	if (await updateGroupedFile(claudeSettings, "claude", [], () => 5, false)) console.log(`claude     cleaned ${claudeSettings}`);
+	const previousCodex = (await readJson(codexHooks))?.hooks;
 	if (await updateGroupedFile(codexHooks, "codex", [], () => 5, false)) console.log(`codex      cleaned ${codexHooks}`);
+	if (await updateCodexTrust(new Map(), codexJetDeckHashes(previousCodex))) console.log(`codex      untrusted in ${codexConfig}`);
 	if (!dryRun) {
 		await rm(copilotHooks, { force: true });
 		await rm(HOOK_TARGET, { force: true });

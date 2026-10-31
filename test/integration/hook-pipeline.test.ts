@@ -21,7 +21,7 @@ const silent = { debug: () => undefined, warn: (m: string) => console.warn(m) };
 /** Runs `command` attached to a fresh pseudo-terminal, as an interactive agent would be. */
 function spawnInPty(command: string): ChildProcess {
 	const args = process.platform === "darwin" ? ["-q", "/dev/null", command] : ["-qec", command, "/dev/null"];
-	return spawn("script", args, { stdio: ["pipe", "ignore", "inherit"], detached: true });
+	return spawn("script", args, { stdio: ["ignore", "ignore", "inherit"], detached: true });
 }
 
 function killGroup(child: ChildProcess): void {

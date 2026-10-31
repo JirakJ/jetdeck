@@ -4,7 +4,7 @@
   "private": true,
   "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions.",
   "license": "UNLICENSED",
-  "author": "Jakub Jirák <jirak92@gmail.com>",
+  "author": "Jakub Jir\u00e1k <jirak92@gmail.com>",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -21,7 +21,8 @@
     "pack": "streamdeck pack com.jakubjirak.jetdeck.sdPlugin --output dist --force",
     "hooks:install": "node scripts/hooks.mjs install",
     "hooks:uninstall": "node scripts/hooks.mjs uninstall",
-    "status": "node scripts/status.mjs"
+    "status": "node scripts/status.mjs",
+    "profile:install": "node scripts/profile.mjs"
   },
   "dependencies": {
     "@elgato/streamdeck": "3.0.4",

@@ -1,4 +1,4 @@
-export const METRIC_KINDS = ["cpu", "gpu", "ane", "ram", "disk"] as const;
+export const METRIC_KINDS = ["cpu", "gpu", "ane", "ram", "disk", "power"] as const;
 
 export type MetricKind = (typeof METRIC_KINDS)[number];
 
@@ -39,6 +39,20 @@ export interface DiskMetrics {
 	readonly availableBytes: number;
 }
 
+/** Thermal pressure as reported by powermetrics. */
+export type ThermalPressure = "Nominal" | "Moderate" | "Heavy" | "Trapping" | "Sleeping";
+
+const THERMAL_LEVELS: readonly ThermalPressure[] = ["Nominal", "Moderate", "Heavy", "Trapping", "Sleeping"];
+
+/** Power in watts from powermetrics; null fields are not reported by this machine. */
+export interface PowerMetrics {
+	readonly cpuW: number | null;
+	readonly gpuW: number | null;
+	readonly aneW: number | null;
+	readonly packageW: number | null;
+	readonly thermal: ThermalPressure | null;
+}
+
 export interface SystemMetrics {
 	readonly at: number;
 	readonly cpu: CpuMetrics | null;
@@ -46,6 +60,8 @@ export interface SystemMetrics {
 	readonly ane: AneMetrics | null;
 	readonly ram: RamMetrics | null;
 	readonly disk: DiskMetrics | null;
+	/** Only present when the powermetrics sudoers rule is installed (`npm run power:enable`). */
+	readonly power: PowerMetrics | null;
 }
 
 type Json = Readonly<Record<string, unknown>>;
@@ -68,6 +84,7 @@ export function parseMetricsLine(line: string): SystemMetrics | null {
 		ane: parseAne(raw["ane"]),
 		ram: parseRam(raw["ram"]),
 		disk: parseDisk(raw["disk"]),
+		power: parsePower(raw["power"]),
 	};
 }
 
@@ -112,7 +129,27 @@ function parseDisk(value: unknown): DiskMetrics | null {
 	return { totalBytes, availableBytes: Math.min(availableBytes, totalBytes) };
 }
 
-/** Headline value of a metric as a 0..1 load, or null when the machine does not expose it. */
+function parsePower(value: unknown): PowerMetrics | null {
+	if (!isObject(value)) return null;
+	const watts = (key: string): number | null => {
+		const n = num(value[key]);
+		return n !== null && n >= 0 ? n : null;
+	};
+	const thermal = value["thermal"];
+	const power: PowerMetrics = {
+		cpuW: watts("cpuW"),
+		gpuW: watts("gpuW"),
+		aneW: watts("aneW"),
+		packageW: watts("packageW"),
+		thermal: THERMAL_LEVELS.find((level) => level === thermal) ?? null,
+	};
+	return power.cpuW === null && power.gpuW === null && power.aneW === null && power.packageW === null ? null : power;
+}
+
+/**
+ * Headline value of a metric, or null when the machine does not expose it:
+ * a 0..1 load for everything except `power`, which is package watts.
+ */
 export function primaryLoad(metrics: SystemMetrics, kind: MetricKind): number | null {
 	switch (kind) {
 		case "cpu":
@@ -125,10 +162,12 @@ export function primaryLoad(metrics: SystemMetrics, kind: MetricKind): number | 
 			return metrics.ram === null ? null : Math.min(1, metrics.ram.usedBytes / metrics.ram.totalBytes);
 		case "disk":
 			return metrics.disk === null ? null : 1 - metrics.disk.availableBytes / metrics.disk.totalBytes;
+		case "power":
+			return metrics.power?.packageW ?? null;
 	}
 }
 
-/** Fixed-size history of the primary load per metric, for sparklines. */
+/** Fixed-size history of the primary value per metric, for sparklines. */
 export class MetricHistory {
 	readonly #capacity: number;
 	readonly #series = new Map<MetricKind, number[]>();

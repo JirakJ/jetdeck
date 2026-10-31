@@ -76,7 +76,7 @@ Remove everything with `npm run hooks:uninstall`.
 | 1 | **Needs You** · Claude 1–7 |
 | 2 | Codex 1–4 · Copilot 1–4 |
 | 3 | Send Prompt: Review · Run tests · Commit · Fix error · Simplify · Plan first · Status · Continue |
-| 4 | CPU · GPU · ANE · RAM · Disk · any agent 8–10 |
+| 4 | CPU · GPU · ANE · RAM · Disk · Power · any agent 8–9 |
 
 Every key is editable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
 *Slot*; **Send Prompt** has label, prompt text, target and submit.
@@ -104,8 +104,14 @@ root and runs only while a metric key is on screen.
 | RAM | app + wired + compressed / installed | used / total, swap | `host_statistics64`, `vm.swapusage`; colour = memory pressure |
 | Disk | used share of the boot volume | free incl. purgeable | `kCFURLVolumeAvailableCapacityForImportantUsageKey` |
 
+| Power | package watts | CPU / GPU / ANE watts, thermal pressure | `powermetrics` (needs `npm run power:enable`) |
+
 Apple exposes no unprivileged ANE utilisation counter, and on current macOS the per-block energy counters are frozen
-for non-root processes, so ANE is reported as activity, not power.
+for non-root processes, so ANE is reported as activity; its watts (and CPU / package power) come from `powermetrics`.
+
+`npm run power:enable` asks for your password once and installs `/etc/sudoers.d/jetdeck-powermetrics`, allowing
+exactly `powermetrics --samplers cpu_power,gpu_power,ane_power,thermal -i 1000 -f plist` without a password — no other
+arguments, so `powermetrics -o FILE` (a root file write) stays protected. `npm run power:disable` removes it.
 
 ## Development
 

@@ -15,11 +15,13 @@
 				<option value="ane">Neural Engine</option>
 				<option value="ram">Memory</option>
 				<option value="disk">Disk</option>
+				<option value="power">Power &amp; thermals</option>
 			</select>
 		</div>
 		<p class="hint">
 			Sampled once per second by a native helper, without root. RAM colour follows macOS memory pressure, not the
-			used share. Neural Engine shows the share of time it drives memory traffic.
+			used share. Neural Engine shows the share of time it drives memory traffic. Power (CPU, GPU, ANE, package watts and
+			thermal pressure) needs <code>npm run power:enable</code> once.
 		</p>
 	</body>
 </html>

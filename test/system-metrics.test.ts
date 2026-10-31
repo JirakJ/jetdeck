@@ -24,7 +24,15 @@ describe("parseMetricsLine", () => {
 
 	it("keeps unavailable metrics as null and rejects garbage", () => {
 		const m = parseMetricsLine('{"at":1,"cpu":null,"gpu":{"usage":null,"watts":1.5,"memoryBytes":null},"ane":null,"ram":null,"disk":null}');
-		assert.deepEqual(m, { at: 1, cpu: null, gpu: { usage: null, watts: 1.5, memoryBytes: null }, ane: null, ram: null, disk: null });
+		assert.deepEqual(m, {
+			at: 1,
+			cpu: null,
+			gpu: { usage: null, watts: 1.5, memoryBytes: null },
+			ane: null,
+			ram: null,
+			disk: null,
+			power: null,
+		});
 		assert.equal(parseMetricsLine("not json"), null);
 		assert.equal(parseMetricsLine('{"cpu":{}}'), null);
 		assert.equal(parseMetricsLine("[]"), null);
@@ -34,6 +42,34 @@ describe("parseMetricsLine", () => {
 		const m = parseMetricsLine('{"at":1,"ane":{"active":1.7},"disk":{"totalBytes":100,"availableBytes":250}}');
 		assert.equal(m?.ane?.active, 1);
 		assert.equal(m?.disk?.availableBytes, 100);
+	});
+});
+
+describe("power metrics", () => {
+	const POWER = '"power":{"cpuW":4.12,"gpuW":0.9,"aneW":1.25,"packageW":6.4,"thermal":"Moderate"}';
+
+	it("parses powermetrics readings and validates thermal pressure", () => {
+		const m = parseMetricsLine(LINE.replace(/\}$/u, `,${POWER}}`));
+		assert.deepEqual(m?.power, { cpuW: 4.12, gpuW: 0.9, aneW: 1.25, packageW: 6.4, thermal: "Moderate" });
+		const odd = parseMetricsLine('{"at":1,"power":{"cpuW":-1,"gpuW":null,"aneW":0,"packageW":null,"thermal":"Toasty"}}');
+		assert.deepEqual(odd?.power, { cpuW: null, gpuW: null, aneW: 0, packageW: null, thermal: null });
+		assert.equal(parseMetricsLine('{"at":1,"power":{"thermal":"Nominal"}}')?.power, null);
+	});
+
+	it("renders package power, per-block watts and thermal pressure", () => {
+		const m = parseMetricsLine(LINE.replace(/\}$/u, `,${POWER}}`)) as SystemMetrics;
+		assert.equal(primaryLoad(m, "power"), 6.4);
+		const key = renderMetricKey("power", m, [5, 6.4]);
+		assert.match(key, /6\.4 W.*C4\.1 G0\.9 A1\.3</su);
+		assert.match(key, /moderate/u);
+		assert.match(key, /#f2cc60/u);
+		assert.match(renderMetricKey("ane", m, []), /53%.*1\.3 W/su);
+		assert.match(renderMetricKey("cpu", m, []), /4\.1 W/u);
+		assert.match(renderMetricKey("power", { ...m, power: null }, []), /power:enable/u);
+	});
+
+	it("scales power sparklines to the recent peak with a 20 W floor", () => {
+		assert.match(sparkline([0, 10], "#fff", 20), /134\.0,117\.0/u);
 	});
 });
 

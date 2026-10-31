@@ -20,7 +20,7 @@ export type MetricKeySettings = {
 
 export const METRIC_ACTION_UUID = "com.jakubjirak.jetdeck.metric";
 
-/** Live system metric (CPU, GPU, ANE, RAM, disk). Press opens Activity Monitor. */
+/** Live system metric (CPU, GPU, ANE, RAM, disk, power). Press opens Activity Monitor. */
 @action({ UUID: METRIC_ACTION_UUID })
 export class MetricKeyAction extends SingletonAction<MetricKeySettings> {
 	readonly #sampler: MetricsSampler;

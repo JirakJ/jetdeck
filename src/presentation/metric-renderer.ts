@@ -7,6 +7,7 @@ const LABEL: Readonly<Record<MetricKind, string>> = {
 	ane: "ANE",
 	ram: "RAM",
 	disk: "DISK",
+	power: "POWER",
 };
 
 type Level = "ok" | "warn" | "high" | "none";
@@ -29,7 +30,12 @@ const THRESHOLDS: Readonly<Record<MetricKind, readonly [number, number]>> = {
 	ane: [0.6, 0.85],
 	ram: [0.8, 0.92],
 	disk: [0.8, 0.9],
+	/** Package watts. */
+	power: [40, 70],
 };
+
+/** Power sparklines scale to the larger of this floor and the recent peak, so idle noise stays flat. */
+const POWER_SCALE_FLOOR_W = 20;
 
 const SPARK_TOP = 98;
 const SPARK_BOTTOM = 136;
@@ -43,6 +49,7 @@ export function renderMetricKey(kind: MetricKind, metrics: SystemMetrics | null,
 			[
 				text(14, 27, LABEL[kind], 15, MUTED, 800, 1, "start"),
 				text(SIZE / 2, 80, metrics === null ? "…" : "n/a", 30, "#30363d", 800),
+				metrics !== null && kind === "power" ? text(SIZE / 2, 108, "npm run power:enable", 11, MUTED, 600) : "",
 			].join(""),
 		);
 	}
@@ -56,14 +63,29 @@ export function renderMetricKey(kind: MetricKind, metrics: SystemMetrics | null,
 		BG,
 		[
 			text(14, 27, LABEL[kind], 15, color, 800, 1, "start"),
-			kind === "cpu" && metrics.cpu !== null
-				? text(SIZE - 14, 27, `${metrics.cpu.pCores}P+${metrics.cpu.eCores}E`, 12, MUTED, 700, 1, "end")
-				: "",
+			corner(kind, metrics),
 			text(SIZE / 2, 70, headline, headlineSize, FG, 800),
 			text(SIZE / 2, 91, clip(detail, 16), 14, MUTED, 600),
-			kind === "disk" ? bar(load, color) : sparkline(history, color),
+			kind === "disk"
+				? bar(load, color)
+				: sparkline(history, color, kind === "power" ? Math.max(POWER_SCALE_FLOOR_W, ...history) : 1),
 		].join(""),
 	);
+}
+
+/** Small top-right annotation: CPU power or core layout, thermal pressure on the power key. */
+function corner(kind: MetricKind, metrics: SystemMetrics): string {
+	if (kind === "cpu") {
+		const watts = metrics.power?.cpuW ?? null;
+		if (watts !== null) return text(SIZE - 14, 27, formatWatts(watts), 12, MUTED, 700, 1, "end");
+		if (metrics.cpu !== null) return text(SIZE - 14, 27, `${metrics.cpu.pCores}P+${metrics.cpu.eCores}E`, 12, MUTED, 700, 1, "end");
+	}
+	if (kind === "power" && metrics.power?.thermal) {
+		const thermal = metrics.power.thermal;
+		const color = thermal === "Nominal" ? MUTED : thermal === "Moderate" ? LEVEL_COLOR.warn : LEVEL_COLOR.high;
+		return text(SIZE - 14, 27, thermal.toLowerCase(), 11, color, 700, 1, "end");
+	}
+	return "";
 }
 
 function describe(kind: MetricKind, metrics: SystemMetrics, load: number): readonly [string, string] {
@@ -74,12 +96,15 @@ function describe(kind: MetricKind, metrics: SystemMetrics, load: number): reado
 		}
 		case "gpu": {
 			const gpu = metrics.gpu!;
-			const watts = gpu.watts === null ? null : `${gpu.watts.toFixed(gpu.watts < 10 ? 1 : 0)} W`;
+			const gpuWatts = gpu.watts ?? metrics.power?.gpuW ?? null;
+			const watts = gpuWatts === null ? null : formatWatts(gpuWatts);
 			const memory = gpu.memoryBytes === null ? null : `${gigabytes(gpu.memoryBytes)} GB`;
 			return [percent(load), [watts, memory].filter((x) => x !== null).join(" · ")];
 		}
-		case "ane":
-			return [percent(load), load >= 0.01 ? "active" : "idle"];
+		case "ane": {
+			const watts = metrics.power?.aneW ?? null;
+			return [percent(load), watts !== null ? formatWatts(watts) : load >= 0.01 ? "active" : "idle"];
+		}
 		case "ram": {
 			const ram = metrics.ram!;
 			const swap = ram.swapBytes >= 512 * 1024 ** 2 ? ` +${gigabytes(ram.swapBytes)}s` : "";
@@ -89,10 +114,22 @@ function describe(kind: MetricKind, metrics: SystemMetrics, load: number): reado
 			const disk = metrics.disk!;
 			return [percent(load), `${capacity(disk.availableBytes)} free`];
 		}
+		case "power": {
+			const power = metrics.power!;
+			const parts = [
+				power.cpuW === null ? null : `C${compactWatts(power.cpuW)}`,
+				power.gpuW === null ? null : `G${compactWatts(power.gpuW)}`,
+				power.aneW === null ? null : `A${compactWatts(power.aneW)}`,
+			];
+			return [formatWatts(load), parts.filter((x) => x !== null).join(" ")];
+		}
 	}
 }
 
 function levelOf(kind: MetricKind, metrics: SystemMetrics, load: number): Level {
+	if (kind === "power" && metrics.power?.thermal && metrics.power.thermal !== "Nominal") {
+		return metrics.power.thermal === "Moderate" ? "warn" : "high";
+	}
 	// macOS keeps RAM full on purpose; kernel memory pressure is the meaningful signal.
 	if (kind === "ram" && metrics.ram !== null && metrics.ram.pressure > 0) {
 		return metrics.ram.pressure >= 4 ? "high" : metrics.ram.pressure >= 2 ? "warn" : "ok";
@@ -101,8 +138,8 @@ function levelOf(kind: MetricKind, metrics: SystemMetrics, load: number): Level 
 	return load >= high ? "high" : load >= warn ? "warn" : "ok";
 }
 
-/** Filled area sparkline of 0..1 samples, newest on the right, fixed 0..1 scale. */
-export function sparkline(values: readonly number[], color: string): string {
+/** Filled area sparkline, newest sample on the right, scaled to 0..`scale`. */
+export function sparkline(values: readonly number[], color: string, scale = 1): string {
 	const left = 10;
 	const right = SIZE - 10;
 	const height = SPARK_BOTTOM - SPARK_TOP;
@@ -112,7 +149,7 @@ export function sparkline(values: readonly number[], color: string): string {
 	const step = (right - left) / (values.length - 1);
 	const points = values.map((v, i) => {
 		const x = left + i * step;
-		const y = SPARK_BOTTOM - Math.min(1, Math.max(0, v)) * height;
+		const y = SPARK_BOTTOM - Math.min(1, Math.max(0, v / scale)) * height;
 		return `${x.toFixed(1)},${y.toFixed(1)}`;
 	});
 	const area = `${left},${SPARK_BOTTOM} ${points.join(" ")} ${right},${SPARK_BOTTOM}`;
@@ -132,6 +169,14 @@ function bar(load: number, color: string): string {
 		`<rect x="${left}" y="${y}" width="${width}" height="16" rx="8" fill="#21262d"/>` +
 		`<rect x="${left}" y="${y}" width="${fill.toFixed(1)}" height="16" rx="8" fill="${color}"/>`
 	);
+}
+
+export function formatWatts(watts: number): string {
+	return `${watts.toFixed(watts < 10 ? 1 : 0)} W`;
+}
+
+function compactWatts(watts: number): string {
+	return watts.toFixed(watts < 10 ? 1 : 0);
 }
 
 function percent(load: number): string {

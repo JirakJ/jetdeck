@@ -9,6 +9,8 @@
 //   ANE   IOReport "PMP/SOC Floor" ANE fabric-bandwidth residency: share of time the Neural Engine is driving traffic
 //   RAM   host_statistics64 (app + wired + compressed, as Activity Monitor), vm.swapusage, memory pressure level
 //   Disk  boot volume capacity incl. purgeable space (as Finder)
+//   Power CPU / GPU / ANE / package power and thermal pressure from powermetrics — only when the sudoers rule
+//         installed by `npm run power:enable` allows exactly POWERMETRICS_ARGV without a password; otherwise null.
 //
 // Metrics that are unavailable on the running machine (e.g. ANE on Intel) are emitted as null.
 // The process exits when its parent dies or stdout is closed.
@@ -16,7 +18,11 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <mach/mach.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <math.h>
+#include <pthread.h>
+#include <spawn.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/sysctl.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -282,6 +289,135 @@ static void disk_sample(DiskSample *out) {
 	CFRelease(url);
 }
 
+// ---- Power (powermetrics via a pinned, passwordless sudo rule) -------------------------------------------------------
+
+// Must match /etc/sudoers.d/jetdeck-powermetrics byte for byte; sudo refuses any other argument list.
+static char *const POWERMETRICS_ARGV[] = {
+	"/usr/bin/sudo", "-n", "/usr/bin/powermetrics", "--samplers", "cpu_power,gpu_power,ane_power,thermal",
+	"-i", "1000", "-f", "plist", NULL,
+};
+extern char **environ;
+
+#define POWER_STALE_SECONDS 3.5
+#define POWER_RETRY_SECONDS 30
+
+typedef struct {
+	bool valid;
+	double cpu_w, gpu_w, ane_w, package_w;
+	char thermal[NAME_LEN];
+	double updated_at;
+} PowerSample;
+
+static pthread_mutex_t power_lock = PTHREAD_MUTEX_INITIALIZER;
+static PowerSample power_latest;
+
+static bool plist_number(CFDictionaryRef dict, CFStringRef key, double *out) {
+	CFNumberRef n = dict != NULL ? CFDictionaryGetValue(dict, key) : NULL;
+	return n != NULL && CFGetTypeID(n) == CFNumberGetTypeID() && CFNumberGetValue(n, kCFNumberDoubleType, out) && isfinite(*out);
+}
+
+/** Watts from `<name>_power` (mW), falling back to `<name>_energy` (mJ over the sample's elapsed time). */
+static double plist_watts(CFDictionaryRef processor, CFStringRef power_key, CFStringRef energy_key, double elapsed_s) {
+	double value;
+	if (plist_number(processor, power_key, &value)) return value / 1000.0;
+	if (elapsed_s > 0 && plist_number(processor, energy_key, &value)) return value / 1000.0 / elapsed_s;
+	return -1;
+}
+
+static void power_ingest(const UInt8 *bytes, CFIndex length) {
+	CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, bytes, length, kCFAllocatorNull);
+	if (data == NULL) return;
+	CFPropertyListRef plist = CFPropertyListCreateWithData(kCFAllocatorDefault, data, kCFPropertyListImmutable, NULL, NULL);
+	CFRelease(data);
+	if (plist == NULL) return;
+	if (CFGetTypeID(plist) == CFDictionaryGetTypeID()) {
+		CFDictionaryRef root = plist;
+		CFDictionaryRef processor = CFDictionaryGetValue(root, CFSTR("processor"));
+		if (processor != NULL && CFGetTypeID(processor) == CFDictionaryGetTypeID()) {
+			double elapsed_ns = 0;
+			plist_number(root, CFSTR("elapsed_ns"), &elapsed_ns);
+			double elapsed_s = elapsed_ns / 1e9;
+			PowerSample sample = {.valid = true};
+			sample.cpu_w = plist_watts(processor, CFSTR("cpu_power"), CFSTR("cpu_energy"), elapsed_s);
+			sample.gpu_w = plist_watts(processor, CFSTR("gpu_power"), CFSTR("gpu_energy"), elapsed_s);
+			sample.ane_w = plist_watts(processor, CFSTR("ane_power"), CFSTR("ane_energy"), elapsed_s);
+			sample.package_w = plist_watts(processor, CFSTR("combined_power"), CFSTR("combined_energy"), elapsed_s);
+			if (sample.package_w < 0 && sample.cpu_w >= 0)
+				sample.package_w = sample.cpu_w + (sample.gpu_w > 0 ? sample.gpu_w : 0) + (sample.ane_w > 0 ? sample.ane_w : 0);
+			CFStringRef thermal = CFDictionaryGetValue(root, CFSTR("thermal_pressure"));
+			if (thermal != NULL && CFGetTypeID(thermal) == CFStringGetTypeID()) cfstr(thermal, sample.thermal);
+			sample.updated_at = monotonic_seconds();
+			pthread_mutex_lock(&power_lock);
+			power_latest = sample;
+			pthread_mutex_unlock(&power_lock);
+		}
+	}
+	CFRelease(plist);
+}
+
+/** Runs powermetrics for as long as it lives, splitting its NUL-separated plist stream; retries every 30 s. */
+static void *power_thread(void *unused) {
+	(void)unused;
+	for (;;) {
+		int fds[2];
+		if (pipe(fds) != 0) return NULL;
+		posix_spawn_file_actions_t actions;
+		posix_spawn_file_actions_init(&actions);
+		posix_spawn_file_actions_adddup2(&actions, fds[1], STDOUT_FILENO);
+		posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+		posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+		posix_spawn_file_actions_addclose(&actions, fds[0]);
+		pid_t child = -1;
+		int spawned = posix_spawn(&child, POWERMETRICS_ARGV[0], &actions, NULL, POWERMETRICS_ARGV, environ);
+		posix_spawn_file_actions_destroy(&actions);
+		close(fds[1]);
+
+		if (spawned == 0) {
+			size_t capacity = 1 << 16, used = 0;
+			UInt8 *buffer = malloc(capacity);
+			ssize_t got;
+			while (buffer != NULL && (got = read(fds[0], buffer + used, capacity - used)) > 0) {
+				used += (size_t)got;
+				size_t start = 0;
+				for (size_t i = 0; i < used; i++) {
+					if (buffer[i] != '\0') continue;
+					if (i > start) power_ingest(buffer + start, (CFIndex)(i - start));
+					start = i + 1;
+				}
+				if (start > 0) {
+					memmove(buffer, buffer + start, used - start);
+					used -= start;
+				}
+				if (used == capacity) {
+					if (capacity >= (1u << 24)) used = 0; // runaway record without separator: drop it
+					else {
+						UInt8 *grown = realloc(buffer, capacity * 2);
+						if (grown == NULL) break;
+						buffer = grown;
+						capacity *= 2;
+					}
+				}
+			}
+			free(buffer);
+			int status;
+			while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+		}
+		close(fds[0]);
+		pthread_mutex_lock(&power_lock);
+		power_latest.valid = false;
+		pthread_mutex_unlock(&power_lock);
+		sleep(POWER_RETRY_SECONDS);
+	}
+	return NULL;
+}
+
+static void power_sample(PowerSample *out) {
+	pthread_mutex_lock(&power_lock);
+	*out = power_latest;
+	pthread_mutex_unlock(&power_lock);
+	if (out->valid && monotonic_seconds() - out->updated_at > POWER_STALE_SECONDS) out->valid = false;
+}
+
 // ---- Output ----------------------------------------------------------------------------------------------------------
 
 static double clamp01(double v) {
@@ -289,8 +425,14 @@ static double clamp01(double v) {
 	return v > 1 ? 1 : v;
 }
 
-static void emit(const ReportSample *rep, const GpuSample *gpu, const MemorySample *mem, const DiskSample *disk) {
-	char buf[1024];
+static void json_watts(char *buf, size_t size, int *n, const char *key, double watts, bool comma) {
+	*n += snprintf(buf + *n, size - (size_t)*n, comma ? ",\"%s\":" : "\"%s\":", key);
+	*n += watts >= 0 && isfinite(watts) ? snprintf(buf + *n, size - (size_t)*n, "%.3f", watts) : snprintf(buf + *n, size - (size_t)*n, "null");
+}
+
+static void emit(const ReportSample *rep, const GpuSample *gpu, const MemorySample *mem, const DiskSample *disk,
+                 const PowerSample *power) {
+	char buf[1536];
 	int n = 0;
 	struct timespec wall;
 	clock_gettime(CLOCK_REALTIME, &wall);
@@ -333,6 +475,18 @@ static void emit(const ReportSample *rep, const GpuSample *gpu, const MemorySamp
 	else
 		n += snprintf(buf + n, sizeof buf - n, ",\"disk\":null");
 
+	if (power->valid) {
+		n += snprintf(buf + n, sizeof buf - n, ",\"power\":{");
+		json_watts(buf, sizeof buf, &n, "cpuW", power->cpu_w, false);
+		json_watts(buf, sizeof buf, &n, "gpuW", power->gpu_w, true);
+		json_watts(buf, sizeof buf, &n, "aneW", power->ane_w, true);
+		json_watts(buf, sizeof buf, &n, "packageW", power->package_w, true);
+		n += power->thermal[0] != '\0' ? snprintf(buf + n, sizeof buf - n, ",\"thermal\":\"%s\"}", power->thermal)
+		                               : snprintf(buf + n, sizeof buf - n, ",\"thermal\":null}");
+	} else {
+		n += snprintf(buf + n, sizeof buf - n, ",\"power\":null");
+	}
+
 	n += snprintf(buf + n, sizeof buf - n, "}\n");
 	if (n > 0 && (size_t)n < sizeof buf && fwrite(buf, 1, (size_t)n, stdout) == (size_t)n && fflush(stdout) == 0) return;
 	exit(0); // stdout closed: the plugin went away.
@@ -348,6 +502,8 @@ int main(int argc, char **argv) {
 	mach_port_t host = mach_host_self();
 	Reporter reporter;
 	bool have_reporter = reporter_open(&reporter);
+	pthread_t power_worker;
+	if (pthread_create(&power_worker, NULL, power_thread, NULL) == 0) pthread_detach(power_worker);
 
 	for (;;) {
 		usleep((useconds_t)interval_ms * 1000);
@@ -362,6 +518,8 @@ int main(int argc, char **argv) {
 		memory_sample(host, &mem);
 		DiskSample disk;
 		disk_sample(&disk);
-		emit(&rep, &gpu, &mem, &disk);
+		PowerSample power;
+		power_sample(&power);
+		emit(&rep, &gpu, &mem, &disk, &power);
 	}
 }

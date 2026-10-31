@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "JetDeck",
-	"Version": "1.1.0.0",
+	"Version": "1.2.0.0",
 	"Author": "Jakub Jirák",
 	"Description": "Live status and one-touch control of Claude Code, Codex and Copilot CLI sessions, plus live CPU, GPU, Neural Engine, RAM and disk usage.",
 	"UUID": "com.jakubjirak.jetdeck",
@@ -83,7 +83,7 @@
 			"Name": "System Metric",
 			"UUID": "com.jakubjirak.jetdeck.metric",
 			"Icon": "imgs/actions/metric/icon",
-			"Tooltip": "Live CPU, GPU, Neural Engine, RAM or disk usage with a 48-second history. Press: open Activity Monitor.",
+			"Tooltip": "Live CPU, GPU, Neural Engine, RAM, disk or power usage with a 48-second history. Press: open Activity Monitor.",
 			"PropertyInspectorPath": "ui/metric.html",
 			"Controllers": [
 				"Keypad"

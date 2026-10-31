@@ -1,6 +1,6 @@
 {
   "name": "jetdeck",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions, plus live system metrics.",
   "license": "UNLICENSED",
@@ -22,7 +22,10 @@
     "hooks:install": "node scripts/hooks.mjs install",
     "hooks:uninstall": "node scripts/hooks.mjs uninstall",
     "status": "node scripts/status.mjs",
-    "profile:install": "node scripts/profile.mjs"
+    "profile:install": "node scripts/profile.mjs",
+    "power:enable": "sh scripts/power.sh enable",
+    "power:disable": "sh scripts/power.sh disable",
+    "power:status": "sh scripts/power.sh status"
   },
   "dependencies": {
     "@elgato/streamdeck": "3.0.4",

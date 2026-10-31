@@ -14,7 +14,7 @@ import { join } from "node:path";
 const ROOT = join(homedir(), "Library", "Application Support", "com.elgato.StreamDeck", "ProfilesV3");
 const XL_MODELS = new Set(["20GAT9901", "20GAT9902", "20GBA9901"]);
 const PAGE_NAME = "JetDeck";
-const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.1.0.0" };
+const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.2.0.0" };
 const dryRun = process.argv.includes("--dry-run");
 
 const PROMPTS = [
@@ -55,8 +55,8 @@ function layout() {
 	for (let i = 1; i <= 4; i++) keys[`${i - 1},1`] = session("codex", i);
 	for (let i = 1; i <= 4; i++) keys[`${i + 3},1`] = session("copilot", i);
 	PROMPTS.forEach(([label, text], i) => (keys[`${i},2`] = prompt(label, text)));
-	["cpu", "gpu", "ane", "ram", "disk"].forEach((kind, i) => (keys[`${i},3`] = metric(kind)));
-	for (let i = 1; i <= 3; i++) keys[`${i + 4},3`] = session("any", i + 7);
+	["cpu", "gpu", "ane", "ram", "disk", "power"].forEach((kind, i) => (keys[`${i},3`] = metric(kind)));
+	for (let i = 1; i <= 2; i++) keys[`${i + 5},3`] = session("any", i + 7);
 	return keys;
 }
 

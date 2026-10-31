@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-31
+
+### Added
+- **Power** metric: package watts with CPU / GPU / ANE breakdown and thermal pressure (key turns amber / red when
+  macOS throttles); the ANE key shows Neural Engine watts, the CPU key CPU watts.
+- `npm run power:enable | power:disable | power:status`: installs a sudoers rule that allows exactly one pinned
+  `powermetrics` command without a password; any other `powermetrics` arguments (e.g. `-o`, which writes files as root)
+  still require the password.
+- `jetdeck-metrics` reads the `powermetrics` plist stream on a background thread, drops stale readings after 3.5 s and
+  retries every 30 s, so enabling power later needs no restart.
+- Profile row 4: CPU · GPU · ANE · RAM · Disk · Power · any agent 8–9.
+
 ## [1.1.0] - 2026-10-31
 
 ### Added

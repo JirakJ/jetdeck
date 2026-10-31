@@ -1,0 +1,77 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "JetDeck",
+	"Version": "1.0.0.0",
+	"Author": "Jakub Jirák",
+	"Description": "Live status and one-touch control of Claude Code, Codex and Copilot CLI sessions: see who is working, who needs you, jump to the exact terminal, approve or interrupt, fire saved prompts.",
+	"UUID": "com.jakubjirak.jetdeck",
+	"Icon": "imgs/plugin/icon",
+	"Category": "JetDeck",
+	"CategoryIcon": "imgs/plugin/category",
+	"CodePath": "bin/plugin.mjs",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "13"
+		}
+	],
+	"Nodejs": {
+		"Version": "24"
+	},
+	"Actions": [
+		{
+			"Name": "Agent Session",
+			"UUID": "com.jakubjirak.jetdeck.session",
+			"Icon": "imgs/actions/session/icon",
+			"Tooltip": "Live state of one Claude Code / Codex / Copilot CLI session. Press: jump to its terminal. Hold: approve the pending prompt, or interrupt the running turn.",
+			"PropertyInspectorPath": "ui/session.html",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/session/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Needs You",
+			"UUID": "com.jakubjirak.jetdeck.attention",
+			"Icon": "imgs/actions/attention/icon",
+			"Tooltip": "How many agent sessions are waiting for you. Press: jump to the longest-waiting one. Hold: approve it.",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/attention/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Send Prompt",
+			"UUID": "com.jakubjirak.jetdeck.prompt",
+			"Icon": "imgs/actions/prompt/icon",
+			"Tooltip": "Types a saved prompt into the best-matching agent session and jumps to it.",
+			"PropertyInspectorPath": "ui/prompt.html",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/prompt/key",
+					"ShowTitle": false
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,96 @@
+# JetDeck
+
+Stream Deck XL plugin that turns your keys into a live control surface for terminal coding agents —
+**Claude Code**, **OpenAI Codex CLI** and **GitHub Copilot CLI**.
+
+- **See every session at a glance.** Each key shows agent, project, state and timer:
+  `WORKING 3:07` · `WAITING 42s` (pulsing) · `DONE 5:12` · `ERROR` · `IDLE`, plus the running tool or pending permission.
+- **Press** → jump to the exact terminal tab/split the agent runs in.
+- **Hold** → approve the pending prompt (sends Enter) or interrupt the running turn (sends Esc).
+- **Needs You** key counts sessions blocked on you; press jumps to the longest-waiting one, hold approves it.
+- **Send Prompt** keys type a saved prompt into the most ready matching session and bring it forward.
+
+## How it works
+
+```
+agent hook ──stdin JSON──▶ ~/.jetdeck/bin/jetdeck-hook ──HTTP over Unix socket──▶ plugin
+                                (sh + curl, ~5 ms,              (~/.jetdeck/ingest.sock, 0600)
+                                 never blocks the agent)                 │
+                                                       ps process tree ──┤ resolve agent pid, TTY, terminal app
+                                                                         ▼
+                                                     SessionStore (state machine) ──▶ SVG keys @ 4 fps
+                                                                         │
+                                                     AppleScript (Ghostty / Terminal.app) ◀── press / hold
+```
+
+- **One session = one agent process.** Identity is the outermost agent pid, so `/clear`, resumes and nested shims
+  never duplicate keys. A process scan every 4 s picks up agents started before the plugin and drops sessions
+  whose process died without a `SessionEnd`.
+- **Hooks are fire-and-forget.** The plugin acknowledges with `204` before doing any work; if the plugin is down the
+  hook drains stdin and exits `0`. Agent behaviour is never changed — JetDeck observes, it does not decide.
+- **Sticky slots.** A session keeps its slot (1, 2, 3, …) for its whole life; new sessions take the lowest free slot.
+
+### Terminal support
+
+| Terminal | Jump to session | Send prompt | Approve / interrupt |
+|---|---|---|---|
+| Ghostty 1.4+ | exact split / tab | typed, optional submit | ✅ |
+| Terminal.app | exact tab | always submitted | ✅ (Esc needs Accessibility for Stream Deck) |
+| IntelliJ / VS Code terminals | app only | — | — |
+
+Terminal detection walks the process tree, so it works regardless of `TERM_PROGRAM`.
+
+## Install
+
+Requirements: macOS 13+, Stream Deck app 7.1+, Node.js 24+, `curl`.
+
+```sh
+git clone https://github.com/JirakJ/jetdeck && cd jetdeck
+npm ci
+npm run check            # typecheck + tests + bundle
+npm run hooks:install    # installs ~/.jetdeck/bin/jetdeck-hook and registers it with all three agents
+npm run link             # links the plugin into Stream Deck
+npm run restart
+```
+
+`hooks:install` is idempotent, keeps every existing hook and writes a `.jetdeck-backup` of each file it changes:
+
+| Agent | File | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse(+Failure), PermissionRequest/Denied, Notification, Elicitation(+Result), Stop, StopFailure, SessionEnd |
+| Codex | `~/.codex/hooks.json` | SessionStart, UserPromptSubmit, Pre/PostToolUse, PermissionRequest, Stop, Interrupt, SessionEnd |
+| Copilot CLI | `~/.copilot/hooks/jetdeck.json` | sessionStart, userPromptSubmitted, pre/postToolUse(+Failure), permissionRequest, notification, agentStop, errorOccurred, sessionEnd |
+
+Codex requires hook trust: run `/hooks` once inside Codex and approve the JetDeck entries.
+Already-running sessions pick up new hooks on their next start; until then they show as `IDLE` via the process scan.
+
+Remove everything with `npm run hooks:uninstall`.
+
+## Use
+
+Drag **Agent Session** onto as many keys as you like and set *Agent* (any / Claude / Codex / Copilot) and *Slot*.
+A typical XL layout: one row of `Claude 1–4`, one of `Codex 1–2` + `Copilot 1–2`, a **Needs You** key, and a row
+of **Send Prompt** keys (“Review diff”, “Run tests”, “Commit”).
+
+The first jump or keystroke into Ghostty / Terminal triggers the macOS Automation prompt
+(“Stream Deck wants to control Ghostty”) — allow it once.
+
+`npm run status` prints what the plugin currently tracks:
+
+```
+claude   pid 81234   waiting      12s  ghostty         /dev/ttys003  /Users/me/work/jetdeck  Bash: rm -rf dist
+codex    pid 80111   working     188s  apple-terminal  /dev/ttys001  /Users/me/work/api      apply_patch
+```
+
+## Development
+
+```sh
+npm run watch      # rebuild on change and restart the plugin
+npm test           # unit + end-to-end (real hook → socket → process table → store, in a real PTY)
+npm run validate   # Stream Deck manifest validation
+npm run pack       # dist/com.jakubjirak.jetdeck.streamDeckPlugin
+```
+
+Layout: `src/domain` (state machine, normalisation, slots — pure), `src/application` (ingestion, process
+monitoring), `src/infrastructure` (socket server, process table, terminal control), `src/presentation` (SVG keys),
+`src/actions` (Stream Deck actions), `hook/` (the agent-side hook), `scripts/` (build, hook installer, status).

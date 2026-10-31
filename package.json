@@ -1,0 +1,36 @@
+{
+  "name": "jetdeck",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stream Deck XL plugin: live status and control of Claude Code, Codex and Copilot CLI sessions.",
+  "license": "UNLICENSED",
+  "author": "Jakub Jirák <jirak92@gmail.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test && npm run build",
+    "validate": "streamdeck validate com.jakubjirak.jetdeck.sdPlugin",
+    "link": "streamdeck link com.jakubjirak.jetdeck.sdPlugin",
+    "restart": "streamdeck restart com.jakubjirak.jetdeck",
+    "pack": "streamdeck pack com.jakubjirak.jetdeck.sdPlugin --output dist --force",
+    "hooks:install": "node scripts/hooks.mjs install",
+    "hooks:uninstall": "node scripts/hooks.mjs uninstall",
+    "status": "node scripts/status.mjs"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "3.0.4",
+    "@elgato/utils": "0.6.2"
+  },
+  "devDependencies": {
+    "@elgato/cli": "1.10.4",
+    "@types/node": "^24.12.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,22 @@
+#!/bin/sh
+# jetdeck-hook <agent> <event>
+#
+# Forwards one agent hook invocation (JSON on stdin) to the JetDeck Stream Deck plugin over its Unix socket.
+# Never blocks or fails the agent: no output, always exit 0, hard 1 s ceiling, stdin always drained.
+
+sock="${JETDECK_SOCKET:-$HOME/.jetdeck/ingest.sock}"
+
+if [ ! -S "$sock" ] || [ "$#" -lt 2 ]; then
+	cat >/dev/null 2>&1
+	exit 0
+fi
+
+curl --silent --unix-socket "$sock" --max-time 1 --output /dev/null \
+	--header 'content-type: application/json' \
+	--header "x-jetdeck-ppid: $PPID" \
+	--header "x-jetdeck-term: ${TERM_PROGRAM:-}" \
+	--header "x-jetdeck-emulator: ${TERMINAL_EMULATOR:-}" \
+	--data-binary @- \
+	"http://jetdeck/v1/events?agent=$1&event=$2" >/dev/null 2>&1 || cat >/dev/null 2>&1
+
+exit 0

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Send Prompt</title>
+		<link rel="stylesheet" href="pi.css" />
+		<script src="pi.js"></script>
+	</head>
+	<body>
+		<div class="row">
+			<label for="label">Key label</label>
+			<input id="label" type="text" maxlength="40" placeholder="Review diff" data-setting="label" />
+		</div>
+		<div class="row top">
+			<label for="prompt">Prompt</label>
+			<textarea id="prompt" placeholder="Review the staged diff for bugs and missing tests." data-setting="prompt"></textarea>
+		</div>
+		<div class="row">
+			<label for="target">Send to</label>
+			<select id="target" data-setting="target">
+				<option value="any">Most ready session</option>
+				<option value="attention">Session waiting for me</option>
+				<option value="claude">Claude Code</option>
+				<option value="codex">Codex</option>
+				<option value="copilot">Copilot CLI</option>
+			</select>
+		</div>
+		<div class="row">
+			<label for="submit">Submit</label>
+			<input id="submit" type="checkbox" checked data-setting="submit" />
+		</div>
+		<p class="hint">
+			The prompt goes to the matching session that is most ready for input (waiting, finished, idle), most
+			recently active first. Without Submit it is only typed (Ghostty).
+		</p>
+	</body>
+</html>

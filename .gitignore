@@ -1,0 +1,6 @@
+node_modules/
+dist/
+com.jakubjirak.jetdeck.sdPlugin/bin/
+com.jakubjirak.jetdeck.sdPlugin/logs/
+*.log
+.DS_Store

@@ -1,0 +1,74 @@
+:root {
+	color-scheme: dark;
+	--fg: #d8d8d8;
+	--muted: #969696;
+	--field: #3d3d3d;
+	--border: #4a4a4a;
+	--accent: #2f7cf6;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 4px 10px 12px;
+	background: #2d2d2d;
+	color: var(--fg);
+	font: 12px/1.4 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+
+.row {
+	display: grid;
+	grid-template-columns: 96px 1fr;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0;
+}
+
+.row.top {
+	align-items: start;
+}
+
+label {
+	color: var(--muted);
+	text-align: right;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+	width: 100%;
+	padding: 4px 6px;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+}
+
+textarea {
+	min-height: 84px;
+	resize: vertical;
+	font-family: "SF Mono", Menlo, monospace;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid var(--accent);
+	border-color: var(--accent);
+}
+
+input[type="checkbox"] {
+	justify-self: start;
+	accent-color: var(--accent);
+}
+
+.hint {
+	margin: 10px 0 0 104px;
+	color: var(--muted);
+	font-size: 11px;
+}

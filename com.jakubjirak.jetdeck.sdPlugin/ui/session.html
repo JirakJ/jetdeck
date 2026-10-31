@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Agent Session</title>
+		<link rel="stylesheet" href="pi.css" />
+		<script src="pi.js"></script>
+	</head>
+	<body>
+		<div class="row">
+			<label for="agent">Agent</label>
+			<select id="agent" data-setting="agent">
+				<option value="any">Any agent</option>
+				<option value="claude">Claude Code</option>
+				<option value="codex">Codex</option>
+				<option value="copilot">Copilot CLI</option>
+			</select>
+		</div>
+		<div class="row">
+			<label for="slot">Slot</label>
+			<input id="slot" type="number" min="1" max="99" step="1" value="1" data-setting="slot" />
+		</div>
+		<p class="hint">
+			Sessions take the lowest free slot and keep it while they run. Press to jump to the terminal;
+			hold to approve a waiting prompt or interrupt a running turn.
+		</p>
+	</body>
+</html>

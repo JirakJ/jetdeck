@@ -14,7 +14,7 @@
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
-    "check": "npm run typecheck && npm test && npm run build",
+    "check": "npm run typecheck && npm run build && npm test",
     "validate": "streamdeck validate com.jakubjirak.jetdeck.sdPlugin",
     "link": "streamdeck link com.jakubjirak.jetdeck.sdPlugin",
     "restart": "streamdeck restart com.jakubjirak.jetdeck",

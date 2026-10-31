@@ -127,6 +127,36 @@ describe("SlotAllocator", () => {
 	});
 });
 
+describe("SlotAllocator with fewer keys than sessions", () => {
+	const keys = new Set([1, 2, 3]);
+
+	it("fills only slots that have a key and counts the rest as hidden", () => {
+		const store = new SessionStore();
+		const slots = new SlotAllocator();
+		for (const pid of [1, 2, 3, 4, 5]) store.apply(event({ type: "prompt" }, pid, { pid, startedAt: pid }));
+		slots.sync("any", store.list(), new Set([1, 3, 4]));
+		assert.deepEqual([1, 2, 3, 4].map((n) => slots.keyAt("any", n)), ["claude:1", null, "claude:2", "claude:3"]);
+		assert.equal(slots.hiddenCount("any", new Set([1, 3, 4])), 2);
+	});
+
+	it("moves the hidden session that most needs attention onto a freed key, without moving visible ones", () => {
+		const store = new SessionStore();
+		const slots = new SlotAllocator();
+		for (const pid of [1, 2, 3, 4, 5, 6]) store.apply(event({ type: "prompt" }, pid, { pid, startedAt: pid }));
+		slots.sync("any", store.list(), keys);
+		assert.equal(slots.hiddenCount("any", keys), 3);
+
+		store.apply(event({ type: "turn-end" }, 20, { pid: 4 }));
+		store.apply(event({ type: "permission", detail: null }, 21, { pid: 6 }));
+		store.apply(event({ type: "session-end" }, 22, { pid: 2 }));
+		slots.sync("any", store.list(), keys);
+
+		assert.deepEqual([1, 2, 3].map((n) => slots.keyAt("any", n)), ["claude:1", "claude:6", "claude:3"]);
+		assert.equal(slots.hiddenCount("any", keys), 2);
+		assert.equal(slots.hiddenCount("any", null), 0);
+	});
+});
+
 describe("target selection", () => {
 	it("prefers sessions ready for input, most recent first", () => {
 		const store = new SessionStore();

@@ -40,8 +40,12 @@ It runs entirely on your machine: no account, no network, no telemetry.
 | **Send Prompt** | a saved prompt | type it into the most ready matching session and jump there | — |
 | **System Metric** | CPU · GPU · ANE · RAM · Disk · Power with a 48 s sparkline | open Activity Monitor | — |
 
-- **Zero-config session discovery.** New sessions appear on the lowest free slot of their agent the moment they start
-  and keep that slot until they exit. Sessions started before JetDeck show up within 4 s via a process scan.
+- **As many terminals as you run.** Sessions of all agents share the session keys and fill them in start order — 12
+  terminals, 12 live keys, each labelled with its agent. A session keeps its key until it exits; sessions started before
+  JetDeck show up within 4 s via a process scan.
+- **More sessions than keys?** The last session key shows **+N** for the ones without a key, *Needs You* still counts
+  and reaches all of them, and whenever a key frees up the hidden session that most needs you (waiting, then error,
+  then done …) takes it.
 - **Works with your existing hooks.** The installer appends to Claude Code, Codex and Copilot configs, keeps every
   hook you already have and writes a backup of each file it touches.
 - **Never in the agent's way.** The hook is a few lines of `sh` + `curl`: it answers in milliseconds, never prints,
@@ -92,13 +96,16 @@ re-running replaces only the JetDeck page.
 
 | Row | Keys |
 |---|---|
-| 1 | **Needs You** · Claude 1–7 |
-| 2 | Codex 1–4 · Copilot 1–4 |
+| 1 | **Needs You** · sessions 1–7 |
+| 2 | sessions 8–15 |
 | 3 | Send Prompt: Review · Run tests · Commit · Fix error · Simplify · Plan first · Status · Continue |
-| 4 | CPU · GPU · ANE · RAM · Disk · Power · any agent 8–9 |
+| 4 | CPU · GPU · ANE · RAM · Disk · Power · sessions 16–17 |
+
+The 17 session keys are shared by Claude Code, Codex and Copilot CLI. Want a fixed group per agent instead (say,
+Codex always bottom-right)? Set *Agent* on those keys — each agent group fills and overflows independently.
 
 Every key is configurable in the Stream Deck app: **Agent Session** has *Agent* (any / Claude / Codex / Copilot) and
-*Slot*; **Send Prompt** has label, prompt, target (most ready session, the one waiting for you, or a specific agent)
+*Slot* (its position within that group); **Send Prompt** has label, prompt, target (most ready session, the one waiting for you, or a specific agent)
 and *Submit*; **System Metric** has the metric.
 
 ## Terminal support

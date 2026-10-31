@@ -44,23 +44,27 @@ function session(
 }
 
 const waiting = session("claude", 2, "web-app", "awaiting", 42, "Bash: npm publish");
-const SESSIONS: ReadonlyArray<readonly [AgentKind, number, Session | null]> = [
-	["claude", 1, session("claude", 1, "api-gateway", "working", 15, "Bash", 187)],
-	["claude", 2, waiting],
-	["claude", 3, session("claude", 3, "infra", "done", 312, null)],
-	["claude", 4, session("claude", 4, "docs", "idle", 0, null)],
-	["claude", 5, null],
-	["claude", 6, null],
-	["claude", 7, null],
-	["codex", 1, session("codex", 5, "billing", "working", 4, "apply_patch", 72)],
-	["codex", 2, session("codex", 6, "mobile", "error", 95, "rate_limit")],
-	["codex", 3, null],
-	["codex", 4, null],
-	["copilot", 1, session("copilot", 7, "cli-tools", "done", 48, null)],
-	["copilot", 2, null],
-	["copilot", 3, null],
-	["copilot", 4, null],
+
+/** Twelve terminals across three agents, in start order — exactly how the shared session keys fill up. */
+const RUNNING: readonly Session[] = [
+	session("claude", 1, "api-gateway", "working", 15, "Bash", 187),
+	waiting,
+	session("codex", 3, "billing", "working", 4, "apply_patch", 72),
+	session("claude", 4, "infra", "done", 312, null),
+	session("copilot", 5, "cli-tools", "done", 48, null),
+	session("claude", 6, "search", "working", 2, "Grep", 41),
+	session("codex", 7, "mobile", "error", 95, "rate_limit"),
+	session("claude", 8, "auth", "idle", 0, null),
+	session("claude", 9, "payments", "working", 9, "Edit", 433),
+	session("copilot", 10, "docs-site", "working", 6, "shell", 25),
+	session("claude", 11, "ml-pipeline", "awaiting", 7, "WebFetch"),
+	session("codex", 12, "design-sys", "done", 640, null),
 ];
+
+function sessionKey(slot: number): string {
+	const s = RUNNING[slot - 1];
+	return s === undefined ? renderEmptySlot("any", slot) : renderSessionKey(s, slot, NOW, false);
+}
 
 const METRICS = parseMetricsLine(
 	JSON.stringify({
@@ -93,15 +97,14 @@ const PROMPTS = ["Review", "Run tests", "Commit", "Fix error", "Simplify", "Plan
 
 function deckKeys(): string[] {
 	const keys: string[] = [];
-	keys.push(renderAttentionKey([waiting], 2, false, NOW));
-	for (const [agent, slot, s] of SESSIONS) {
-		keys.push(s === null ? renderEmptySlot(agent, slot) : renderSessionKey(s, slot, NOW, false));
-	}
+	const awaiting = RUNNING.filter((s) => s.state === "awaiting").sort((a, b) => a.stateSince - b.stateSince);
+	keys.push(renderAttentionKey(awaiting, 4, false, NOW));
+	for (let slot = 1; slot <= 15; slot++) keys.push(sessionKey(slot));
 	for (const label of PROMPTS) keys.push(renderPromptKey(label, "any", null));
 	for (const kind of ["cpu", "gpu", "ane", "ram", "disk", "power"] as const) {
 		keys.push(renderMetricKey(kind, METRICS, HISTORY[kind]));
 	}
-	keys.push(renderEmptySlot("any", 8), renderEmptySlot("any", 9));
+	keys.push(sessionKey(16), sessionKey(17));
 	return keys;
 }
 
@@ -140,14 +143,15 @@ await shoot(
 	"agent-states.png",
 	page(
 		[
-			renderSessionKey(session("claude", 1, "api-gateway", "working", 15, "Bash", 187), 1, NOW, false),
+			renderSessionKey(RUNNING[0]!, 1, NOW, false),
 			renderSessionKey(waiting, 2, NOW, false),
-			renderSessionKey(session("claude", 3, "infra", "done", 312, null), 3, NOW, false),
-			renderSessionKey(session("codex", 6, "mobile", "error", 95, "rate_limit"), 2, NOW, false),
-			renderSessionKey(session("claude", 4, "docs", "idle", 0, null), 4, NOW, false),
+			renderSessionKey(RUNNING[3]!, 4, NOW, false),
+			renderSessionKey(RUNNING[6]!, 7, NOW, false),
+			renderSessionKey(RUNNING[7]!, 8, NOW, false),
+			renderSessionKey(RUNNING[8]!, 17, NOW, false, 3),
 			renderAttentionKey([waiting], 2, false, NOW),
 		],
-		6,
+		7,
 		false,
 	),
 );

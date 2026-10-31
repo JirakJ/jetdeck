@@ -72,17 +72,28 @@ export class SessionKeyAction extends SingletonAction<SessionKeySettings> implem
 	}
 
 	refresh(now: number, pulse: boolean): void {
-		const filters = new Set([...this.#bindings.values()].map((b) => b.filter));
-		for (const filter of filters) this.#ctx.slots.sync(filter, this.#ctx.store.list(filter));
+		const visible = new Map<AgentFilter, Set<number>>();
+		for (const binding of this.#bindings.values()) {
+			const slots = visible.get(binding.filter) ?? new Set<number>();
+			slots.add(binding.slot);
+			visible.set(binding.filter, slots);
+		}
+		const overflow = new Map<AgentFilter, { readonly lastSlot: number; readonly hidden: number }>();
+		for (const [filter, slots] of visible) {
+			this.#ctx.slots.sync(filter, this.#ctx.store.list(filter), slots);
+			overflow.set(filter, { lastSlot: Math.max(...slots), hidden: this.#ctx.slots.hiddenCount(filter, slots) });
+		}
 
 		for (const [id, key] of this.#keys) {
 			const binding = this.#bindings.get(id);
 			if (binding === undefined) continue;
 			const session = this.#sessionFor(binding);
+			const more = overflow.get(binding.filter);
+			const hidden = more !== undefined && more.lastSlot === binding.slot ? more.hidden : 0;
 			const svg =
 				session === null
 					? renderEmptySlot(binding.filter, binding.slot)
-					: renderSessionKey(session, binding.slot, now, pulse);
+					: renderSessionKey(session, binding.slot, now, pulse, hidden);
 			if (this.#images.changed(id, svg)) void key.setImage(toDataUrl(svg)).catch(() => undefined);
 		}
 	}

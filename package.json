@@ -1,6 +1,6 @@
 {
   "name": "jetdeck",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Stream Deck plugin: live status and one-touch control of Claude Code, Codex and Copilot CLI sessions, plus live CPU, GPU, Neural Engine, RAM, disk and power of your Mac.",
   "keywords": [

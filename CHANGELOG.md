@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-10-31
+
+### Changed
+- The ready-made XL page now has **17 session keys shared by all agents** (rows 1–2 and two keys in row 4) instead of
+  fixed Claude 7 / Codex 4 / Copilot 4 rows, so 12 terminals of one agent get 12 live keys.
+
+### Added
+- Overflow handling: new sessions only take slots that have a key; the last key of a group shows **+N** for sessions
+  without a key; when a key frees up, the hidden session that most needs you (waiting > error > done > working > idle,
+  then most recently active) moves onto it. Visible sessions never move.
+
 ## [1.3.0] - 2026-10-31
 
 ### Added

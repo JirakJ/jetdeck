@@ -32,8 +32,11 @@ export const AGENT_COLOR: Readonly<Record<AgentKind, string>> = {
 	copilot: "#b392f0",
 };
 
-/** Renders one session key. `pulse` alternates the background of sessions waiting for the user. */
-export function renderSessionKey(session: Session, slot: number, now: number, pulse: boolean): string {
+/**
+ * Renders one session key. `pulse` alternates the background of sessions waiting for the user; `hidden` > 0 marks the
+ * last key of a group with the number of further sessions that have no key ("+3").
+ */
+export function renderSessionKey(session: Session, slot: number, now: number, pulse: boolean, hidden = 0): string {
 	const palette = STATE_PALETTE[session.state];
 	const bg = session.state === "awaiting" && pulse ? palette.bgAlt : palette.bg;
 	const name = projectName(session.cwd);
@@ -43,7 +46,7 @@ export function renderSessionKey(session: Session, slot: number, now: number, pu
 	return svg(
 		bg,
 		[
-			header(session.agent, `${slot}`),
+			header(session.agent, hidden > 0 ? `+${hidden}` : `${slot}`, hidden > 0),
 			text(SIZE / 2, 74, clip(name, 12), nameSize, palette.fg, 700),
 			activity === null ? "" : text(SIZE / 2, 98, clip(activity, 15), 15, palette.fg, 500, 0.75),
 			band(palette.accent, `${STATE_LABEL[session.state]} ${elapsed(session, now)}`.trim()),
@@ -117,11 +120,15 @@ export function renderPromptKey(label: string, target: PromptTarget, flash: "ok"
 
 export { toDataUrl } from "./svg.ts";
 
-function header(agent: AgentKind, right: string): string {
+function header(agent: AgentKind, right: string, emphasize = false): string {
+	const badge = emphasize
+		? `<rect x="${SIZE - 14 - right.length * 10 - 10}" y="10" width="${right.length * 10 + 16}" height="22" rx="11" fill="#f2cc60"/>` +
+			text(SIZE - 14, 27, right, 15, "#0d1117", 800, 1, "end")
+		: text(SIZE - 14, 27, right, 14, "#e6edf3", 700, 0.55, "end");
 	return [
 		`<circle cx="22" cy="22" r="6" fill="${AGENT_COLOR[agent]}"/>`,
 		text(35, 27, AGENT_LABEL[agent], 14, "#e6edf3", 800, 0.9, "start"),
-		text(SIZE - 14, 27, right, 14, "#e6edf3", 700, 0.55, "end"),
+		badge,
 	].join("");
 }
 

@@ -14,7 +14,7 @@ import { join } from "node:path";
 const ROOT = join(homedir(), "Library", "Application Support", "com.elgato.StreamDeck", "ProfilesV3");
 const XL_MODELS = new Set(["20GAT9901", "20GAT9902", "20GBA9901"]);
 const PAGE_NAME = "JetDeck";
-const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.3.0.0" };
+const PLUGIN = { Name: "JetDeck", UUID: "com.jakubjirak.jetdeck", Version: "1.4.0.0" };
 const dryRun = process.argv.includes("--dry-run");
 
 const PROMPTS = [
@@ -51,12 +51,13 @@ const prompt = (label, text) =>
 function layout() {
 	const keys = {};
 	keys["0,0"] = action("com.jakubjirak.jetdeck.attention", "Needs You", {});
-	for (let i = 1; i <= 7; i++) keys[`${i},0`] = session("claude", i);
-	for (let i = 1; i <= 4; i++) keys[`${i - 1},1`] = session("codex", i);
-	for (let i = 1; i <= 4; i++) keys[`${i + 3},1`] = session("copilot", i);
+	// 17 session keys shared by all agents: sessions fill them in start order whatever the agent, the last one shows
+	// "+N" when more sessions run than there are keys, and a freed key goes to the hidden session that most needs you.
+	for (let i = 1; i <= 7; i++) keys[`${i},0`] = session("any", i);
+	for (let i = 1; i <= 8; i++) keys[`${i - 1},1`] = session("any", i + 7);
 	PROMPTS.forEach(([label, text], i) => (keys[`${i},2`] = prompt(label, text)));
 	["cpu", "gpu", "ane", "ram", "disk", "power"].forEach((kind, i) => (keys[`${i},3`] = metric(kind)));
-	for (let i = 1; i <= 2; i++) keys[`${i + 5},3`] = session("any", i + 7);
+	for (let i = 1; i <= 2; i++) keys[`${i + 5},3`] = session("any", i + 15);
 	return keys;
 }
 

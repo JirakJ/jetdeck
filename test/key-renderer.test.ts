@@ -61,6 +61,13 @@ describe("key renderer", () => {
 		assert.match(renderAttentionKey([], 0, false, 0), /all clear/u);
 	});
 
+	it("marks the last key with the number of sessions that have no key", () => {
+		const svg = renderSessionKey(SESSION, 17, 0, false, 3);
+		assert.match(svg, />\+3</u);
+		assert.ok(!svg.includes(">17<"));
+		assert.match(renderSessionKey(SESSION, 17, 0, false), />17</u);
+	});
+
 	it("renders empty slots, prompt keys and data URLs", () => {
 		assert.match(renderEmptySlot("codex", 4), /CODEX/u);
 		assert.match(renderPromptKey("Review", "attention", "ok"), /→ WAITING/u);

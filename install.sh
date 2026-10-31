@@ -47,25 +47,41 @@ step "Fetching JetDeck $ref"
 if [ -d "$DIR/.git" ]; then
 	git -C "$DIR" fetch --quiet --tags --force origin
 	if git -C "$DIR" show-ref --verify --quiet "refs/remotes/origin/$ref"; then
-		git -C "$DIR" checkout --quiet --force -B "$ref" "origin/$ref"
+		git -C "$DIR" -c advice.detachedHead=false checkout --quiet --force -B "$ref" "origin/$ref"
 	else
-		git -C "$DIR" checkout --quiet --force "$ref"
+		git -C "$DIR" -c advice.detachedHead=false checkout --quiet --force "$ref"
 	fi
 else
 	mkdir -p "$(dirname "$DIR")"
-	git clone --quiet --branch "$ref" "$REPO" "$DIR"
+	git -c advice.detachedHead=false clone --quiet --branch "$ref" "$REPO" "$DIR" 2>&1 | grep -v 'is not a commit' >&2 || true
+	[ -d "$DIR/.git" ] || fail "could not clone $REPO"
 fi
 ok "$DIR"
 
 cd "$DIR"
+log="$DIR/.install.log"
+quietly() {
+	"$@" >"$log" 2>&1 || {
+		cat "$log" >&2
+		fail "'$*' failed (log above)"
+	}
+}
+
 step "Building"
-npm ci --include=dev --no-audit --no-fund --loglevel=error
-npm run --silent build >/dev/null
+quietly npm ci --include=dev --no-audit --no-fund
+quietly npm run build
 ok "plugin bundle and native metrics sampler"
 
 step "Linking into Stream Deck"
-npx --no-install streamdeck link com.jakubjirak.jetdeck.sdPlugin >/dev/null
-ok "com.jakubjirak.jetdeck"
+plugins="$HOME/Library/Application Support/com.elgato.StreamDeck/Plugins"
+installed="$plugins/com.jakubjirak.jetdeck.sdPlugin"
+if [ -L "$installed" ]; then
+	rm "$installed" # an earlier link (e.g. a development checkout) is replaced by this install
+elif [ -e "$installed" ]; then
+	fail "JetDeck is already installed from a .streamDeckPlugin package. Remove it in Stream Deck (Plugins → JetDeck → Uninstall) and run this again."
+fi
+quietly npx --no-install streamdeck link com.jakubjirak.jetdeck.sdPlugin
+ok "$installed -> $DIR/com.jakubjirak.jetdeck.sdPlugin"
 
 step "Installing agent hooks"
 npm run --silent hooks:install | sed 's/^/  /'

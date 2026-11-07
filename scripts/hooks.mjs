@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Installs / removes the JetDeck hook in Claude Code, Codex and Copilot CLI user configs.
-// Idempotent, preserves every foreign hook, and backs up each file it rewrites.
+// Idempotent, preserves every foreign hook, and keeps the first backup of each file it rewrites.
 //
 //   node scripts/hooks.mjs install [--dry-run]
 //   node scripts/hooks.mjs uninstall [--dry-run]
 
-import { chmod, copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { chmod, copyFile, lstat, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -111,7 +112,7 @@ async function updateCodexTrust(wanted, previousHashes) {
 		console.log(`--- ${codexConfig} (hooks.state)\n${[...wanted].map(([k, h]) => `${k} = ${h}`).join("\n")}`);
 		return true;
 	}
-	if (text.length > 0) await copyFile(codexConfig, `${codexConfig}.jetdeck-backup`);
+	if (text.length > 0) await backupOnce(codexConfig);
 	await writeFile(codexConfig, next, "utf8");
 	return true;
 }
@@ -143,8 +144,19 @@ async function writeJson(path, value) {
 		return;
 	}
 	await mkdir(dirname(path), { recursive: true });
-	if (await exists(path)) await copyFile(path, `${path}.jetdeck-backup`);
+	if (await exists(path)) await backupOnce(path);
 	await writeFile(path, text, "utf8");
+}
+
+/** Saves the pre-JetDeck file. A later run must not replace it: by then `path` already holds JetDeck's changes. */
+async function backupOnce(path) {
+	const backup = `${path}.jetdeck-backup`;
+	try {
+		await copyFile(path, backup, constants.COPYFILE_EXCL);
+	} catch (error) {
+		if (error.code !== "EEXIST") throw error;
+		if (!(await lstat(backup)).isFile()) throw new Error(`${backup}: existing backup is not a regular file`);
+	}
 }
 
 async function exists(path) {
